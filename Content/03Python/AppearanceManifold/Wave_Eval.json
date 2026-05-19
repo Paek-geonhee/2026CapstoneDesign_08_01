@@ -1,0 +1,56 @@
+{
+    "KNN_GRAPH": {
+        "node_count": 16384,
+        "edge_count": 131050,
+        "connected_components": 1,
+        "largest_component_ratio": 1.0,
+        "degree_min": 6,
+        "degree_max": 8,
+        "degree_mean": 7.9986572265625,
+        "degree_std": 0.039813452776612385,
+        "edge_weight_min": 0.007320717442780733,
+        "edge_weight_max": 0.1311955749988556,
+        "edge_weight_mean": 0.04669259861111641,
+        "edge_weight_std": 0.011366456747055054
+    },
+    "GEODESIC_MATRIX": {
+        "shape": [
+            16384,
+            16384
+        ],
+        "finite_ratio": 1.0,
+        "inf_count": 0,
+        "distance_min": 0.014692071825265884,
+        "distance_max": 7.323855128139257,
+        "distance_mean": 2.355831815877881,
+        "distance_std": 1.1291152375046558,
+        "distance_percentile_50": 2.2825613860040903,
+        "distance_percentile_90": 3.9027670230716467,
+        "distance_percentile_99": 5.128283405303959
+    },
+    "MDS_EMBEDDING": {
+        "embedding_shape": [
+            16384,
+            3
+        ],
+        "axis_variance": [
+            1.763373090525393,
+            1.5603513957743822,
+            0.07363169429948821
+        ],
+        "embedding_norm_mean": 1.6731803670122476,
+        "embedding_norm_std": 0.7731905586878459,
+        "stress": 0.027680621229290638
+    },
+    "TRAJECTORY": {
+        "trajectory_point_count": 256,
+        "trajectory_total_length": 3.127326011657715,
+        "step_length_min": 0.0061208452098071575,
+        "step_length_max": 0.012571927160024643,
+        "step_length_mean": 0.012264023534953594,
+        "step_length_std": 0.0009720388916321099,
+        "curvature_mean": 0.1860760599374771,
+        "curvature_std": 0.3933725357055664,
+        "curvature_max": 1.8929455280303955
+    }
+}

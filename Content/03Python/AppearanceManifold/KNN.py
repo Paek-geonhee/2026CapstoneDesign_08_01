@@ -13,9 +13,9 @@ def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
     epsilon_scale   : float
 
     return
-    edge_src        : np.array(N,N)
-    edge_dst        : np.array(N,N)
-    edge_weight     : np.array(N,N)
+    edge_src        : np.array(E,E)
+    edge_dst        : np.array(E,E)
+    edge_weight     : np.array(E,E)
     weather_score   : np.array(N,7)
     ----------
     """
@@ -35,13 +35,6 @@ def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
     # remove self
     distances = distances[:, 1:]
     indices = indices[:, 1:]
-    
-    print("Distances :")
-    print(distances)
-    print()
-    print("Indices :")
-    print(indices)
-
 
     edge_src = []
     edge_dst = []
@@ -77,10 +70,6 @@ def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
 
             weight = dist * progression_factor
 
-            #progression_bonus = 1.0 - delta
-
-            #weight = dist * progression_bonus
-
             edge_src.append(i)
             edge_dst.append(j)
             edge_weight.append(weight)
@@ -91,6 +80,13 @@ def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
         np.array(edge_weight, dtype=np.float32),
         weather_score
     )
+
+
+
+
+
+
+# -----------------------------------Test Only (Deprecated) -----------------------------------
 
 from sklearn.neighbors import NearestNeighbors
 import numpy as np

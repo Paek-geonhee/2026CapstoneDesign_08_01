@@ -3,23 +3,21 @@ import numpy as np
 from scipy.sparse.csgraph import dijkstra
 
 
-import cugraph
-import cudf
-import cupy as cp
+
 
 def Get_Geodesic_Distance_Matrix(edge_src, edge_dst, edge_weight, N):
 
     """
     Parameters
     ----------
-    edge_src : (E,)
-    edge_dst : (E,)
-    edge_weight : (E,)
-    N : int
+    edge_src        : (E,)
+    edge_dst        : (E,)
+    edge_weight     : (E,)
+    N               : int
 
     Return
     ------
-    geodesic : np.array(E,)
+    geodesic        : (E,)
     """
 
     rows = np.concatenate([edge_src, edge_dst]).astype(np.float32)
@@ -39,6 +37,13 @@ def Get_Geodesic_Distance_Matrix(edge_src, edge_dst, edge_weight, N):
     return geodesic
 
 
+
+# -----------------------------Deprecated---------------------------------
+
+import cugraph
+import cudf
+import cupy as cp
+
 def Get_Geodesic_Distance_Matrix_GPU(
     edge_src,
     edge_dst,
@@ -51,14 +56,14 @@ def Get_Geodesic_Distance_Matrix_GPU(
 
     Parameters
     ----------
-    edge_src : (E,)
-    edge_dst : (E,)
-    edge_weight : (E,)
-    N : int
+    edge_src        : (E,)
+    edge_dst        : (E,)
+    edge_weight     : (E,)
+    N               : int
 
     Return
     ------
-    geodesic : np.array(N,N)
+    geodesic        : np.array(N,N)
     """
 
     # =====================================================
