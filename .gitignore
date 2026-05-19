@@ -73,3 +73,23 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+.venv/
+.venv-1/
+.venv-2/
+
+# VSCode
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Miniforge installer
+Miniforge3-Linux-x86_64.sh

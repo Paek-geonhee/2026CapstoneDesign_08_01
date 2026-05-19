@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.sparse.linalg import eigsh
 import matplotlib.pyplot as plt
+import cupy as cp
 
 import cupy as cp
 
@@ -114,13 +115,157 @@ def visualize_MDS_Graph(Z, data_7d):
     data_7d         : np.array(N,7)
     """
      
-
-    roughness = data_7d[:, 6]
-    colors = data_7d[:, 0:3]
-
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    ax.scatter(Z[:, 0], Z[:, 1], Z[:, 2], c=colors, s=1)
+    ax.scatter(Z[:, 0], Z[:, 1], Z[:, 2], s=2)
 
     plt.show()
+
+def visualize_MDS_Graph_Edges(Z,  edge_src, edge_dst, data_7d):
+    """
+    Params
+    ----------
+    Z               : np.array(N,3)
+    edge_src        : np.array(N,N)
+    edge_dst        : np.array(N,N)
+    data_7d         : np.array(N,7)
+    """
+     
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # scatter points
+    ax.scatter(
+        Z[:, 0],
+        Z[:, 1],
+        Z[:, 2],
+        s=2
+    )
+
+    # draw graph edges
+    for src, dst in zip(edge_src, edge_dst):
+
+        x = [Z[src, 0], Z[dst, 0]]
+        y = [Z[src, 1], Z[dst, 1]]
+        z = [Z[src, 2], Z[dst, 2]]
+
+        ax.plot(
+            x,
+            y,
+            z,
+            alpha=0.25,
+            linewidth=0.5
+        )
+
+    plt.show()
+
+def visualize_MDS_Graph_Edges_2D(Z,  edge_src, edge_dst, data_7d):
+    """
+    Params
+    ----------
+    Z               : np.array(N,3)
+    edge_src        : np.array(N,N)
+    edge_dst        : np.array(N,N)
+    data_7d         : np.array(N,7)
+    """
+     
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # scatter points
+    ax.scatter(
+        Z[:, 0],
+        Z[:, 1],
+        s=2
+    )
+
+    # draw graph edges
+    for src, dst in zip(edge_src, edge_dst):
+
+        x = [Z[src, 0], Z[dst, 0]]
+        y = [Z[src, 1], Z[dst, 1]]
+
+        ax.plot(
+            x,
+            y,
+            alpha=0.25,
+            linewidth=0.5
+        )
+
+    plt.show()
+
+
+
+def Get_MDS_graph_GPU(D, dim=3):
+    """
+    GPU Accelerated Classical MDS
+
+    Parameters
+    ----------
+    D : np.array(N,N)
+        Distance matrix
+
+    dim : int
+        Output embedding dimension
+
+    Returns
+    -------
+    Z : np.array(N, dim)
+    """
+
+    # -----------------------------
+    # CPU -> GPU
+    # -----------------------------
+    D = cp.asarray(D)
+
+    N = D.shape[0]
+
+    # -----------------------------
+    # inf 처리
+    # -----------------------------
+    finite_mask = cp.isfinite(D)
+
+    max_val = cp.max(D[finite_mask])
+
+    D = D.copy()
+
+    D[~finite_mask] = max_val
+
+    # -----------------------------
+    # Centering matrix
+    # -----------------------------
+    H = cp.eye(N) - cp.ones((N, N)) / N
+
+    # -----------------------------
+    # Gram matrix
+    # -----------------------------
+    D2 = D ** 2
+
+    B = -0.5 * (H @ D2 @ H)
+
+    # -----------------------------
+    # Numerical stabilization
+    # -----------------------------
+    B = cp.nan_to_num(B)
+
+    B = 0.5 * (B + B.T)
+
+    # -----------------------------
+    # Dense symmetric eigendecomposition
+    # -----------------------------
+    evals, evecs = cp.linalg.eigh(B)
+
+    # descending sort
+    idx = cp.argsort(evals)[::-1]
+
+    evals = evals[idx][:dim]
+    evecs = evecs[:, idx][:, :dim]
+
+    # -----------------------------
+    # Embedding
+    # -----------------------------
+    Z = evecs * cp.sqrt(cp.maximum(evals, 0))
+
+    # GPU -> CPU
+    return cp.asnumpy(Z)

@@ -23,8 +23,6 @@ def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
     N = samples_7d.shape[0]
 
     weather_score = compute_weather_score(samples_7d)
-    #print("Weather Score : ")
-    #print(weather_score)
 
     extra_k = min(K * extra_ratio, N - 1)
 
@@ -79,13 +77,310 @@ def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
 
             weight = dist * progression_factor
 
-            progression_bonus = 1.0 - delta
+            #progression_bonus = 1.0 - delta
 
-            weight = dist * progression_bonus
+            #weight = dist * progression_bonus
 
             edge_src.append(i)
             edge_dst.append(j)
             edge_weight.append(weight)
+
+    return (
+        np.array(edge_src, dtype=np.int32),
+        np.array(edge_dst, dtype=np.int32),
+        np.array(edge_weight, dtype=np.float32),
+        weather_score
+    )
+
+from sklearn.neighbors import NearestNeighbors
+import numpy as np
+
+
+def Get_KNN_Graph_Adaptive(
+    samples_7d,
+    K=8,
+    epsilon_scale=1.5
+):
+    """
+    Parameters
+    ----------
+    samples_7d : np.array(N,7)
+
+    K : int
+        Maximum neighbor candidates
+
+    epsilon_scale : float
+        Adaptive radius multiplier
+
+    Returns
+    -------
+    edge_src : np.array(E,)
+    edge_dst : np.array(E,)
+    edge_weight : np.array(E,)
+    weather_score : np.array(N,)
+    """
+
+    N = samples_7d.shape[0]
+
+    # =====================================================
+    # 1. weather score
+    # =====================================================
+
+    weather_score = compute_weather_score(samples_7d)
+
+    # =====================================================
+    # 2. KNN search
+    # =====================================================
+
+    nn = NearestNeighbors(
+        n_neighbors=K + 1,
+        algorithm='auto'
+    )
+
+    nn.fit(samples_7d)
+
+    distances, indices = nn.kneighbors(samples_7d)
+
+    # remove self neighbor
+    distances = distances[:, 1:]
+    indices = indices[:, 1:]
+
+    # =====================================================
+    # 3. graph construction
+    # =====================================================
+
+    edge_src = []
+    edge_dst = []
+    edge_weight = []
+
+    for i in range(N):
+
+        local_dists = distances[i]
+        local_inds = indices[i]
+
+        # -------------------------------------------------
+        # adaptive epsilon
+        # -------------------------------------------------
+
+        dp = np.mean(local_dists)
+
+        epsilon = epsilon_scale * dp
+
+        score_i = weather_score[i]
+
+        # -------------------------------------------------
+        # candidate neighbors
+        # -------------------------------------------------
+
+        for dist, j in zip(local_dists, local_inds):
+
+            # remove overly distant neighbors
+            if dist > epsilon:
+                continue
+
+            score_j = weather_score[j]
+
+            delta = score_j - score_i
+
+            # =============================================
+            # progression weighting
+            # =============================================
+
+            if delta >= 0:
+
+                # forward progression
+                progression_factor = (
+                    1.0 - 0.35 * delta
+                )
+
+            else:
+
+                # backward penalty
+                progression_factor = (
+                    1.0 + 1.5 * abs(delta)
+                )
+
+            weight = dist * progression_factor
+
+            # =============================================
+            # append edge
+            # =============================================
+
+            edge_src.append(i)
+            edge_dst.append(j)
+            edge_weight.append(weight)
+
+    # =====================================================
+    # 4. return
+    # =====================================================
+
+    return (
+        np.array(edge_src, dtype=np.int32),
+        np.array(edge_dst, dtype=np.int32),
+        np.array(edge_weight, dtype=np.float32),
+        weather_score
+    )
+
+
+import heapq
+
+
+def Get_KNN_Graph_Adaptive_Streaming(
+    samples_7d,
+    K=8,
+    epsilon_scale=1.5
+):
+
+    N = samples_7d.shape[0]
+
+    # =====================================================
+    # 1. weather score
+    # =====================================================
+
+    weather_score = compute_weather_score(samples_7d)
+
+    # =====================================================
+    # 2. graph buffers
+    # =====================================================
+
+    edge_src = []
+    edge_dst = []
+    edge_weight = []
+
+    # =====================================================
+    # 3. streaming KNN
+    # =====================================================
+
+    for i in range(N):
+
+        xi = samples_7d[i]
+
+        # -------------------------------------------------
+        # maxheap for Top-K smallest distances
+        #
+        # stored as:
+        # (-dist, neighbor_index)
+        # -------------------------------------------------
+
+        topk_heap = []
+
+        for j in range(N):
+
+            if i == j:
+                continue
+
+            xj = samples_7d[j]
+
+            # =============================================
+            # euclidean distance
+            # =============================================
+
+            dist = np.linalg.norm(xi - xj)
+
+            # =============================================
+            # heap fill phase
+            # =============================================
+
+            if len(topk_heap) < K:
+
+                heapq.heappush(
+                    topk_heap,
+                    (-dist, j)
+                )
+
+                continue
+
+            # =============================================
+            # current worst candidate
+            # =============================================
+
+            current_max_dist = -topk_heap[0][0]
+
+            # =============================================
+            # replace if better
+            # =============================================
+
+            if dist < current_max_dist:
+
+                heapq.heapreplace(
+                    topk_heap,
+                    (-dist, j)
+                )
+
+        # =================================================
+        # 4. extract neighbors
+        # =================================================
+
+        local_neighbors = []
+
+        while topk_heap:
+
+            neg_dist, j = heapq.heappop(topk_heap)
+
+            local_neighbors.append(
+                (-neg_dist, j)
+            )
+
+        local_neighbors.reverse()
+
+        local_dists = np.array(
+            [x[0] for x in local_neighbors],
+            dtype=np.float32
+        )
+
+        local_inds = np.array(
+            [x[1] for x in local_neighbors],
+            dtype=np.int32
+        )
+
+        # =================================================
+        # 5. adaptive epsilon
+        # =================================================
+
+        dp = np.mean(local_dists)
+
+        epsilon = epsilon_scale * dp
+
+        score_i = weather_score[i]
+
+        # =================================================
+        # 6. graph construction
+        # =================================================
+
+        for dist, j in zip(local_dists, local_inds):
+
+            if dist > epsilon:
+                continue
+
+            score_j = weather_score[j]
+
+            delta = score_j - score_i
+
+            # =============================================
+            # progression weighting
+            # =============================================
+
+            if delta >= 0:
+
+                progression_factor = (
+                    1.0 - 0.35 * delta
+                )
+
+            else:
+
+                progression_factor = (
+                    1.0 + 1.5 * abs(delta)
+                )
+
+            weight = dist * progression_factor
+
+            edge_src.append(i)
+            edge_dst.append(j)
+            edge_weight.append(weight)
+
+    # =====================================================
+    # 7. return
+    # =====================================================
 
     return (
         np.array(edge_src, dtype=np.int32),
