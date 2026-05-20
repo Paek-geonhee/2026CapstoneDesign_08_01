@@ -2,6 +2,22 @@ from sklearn.neighbors import NearestNeighbors
 import numpy as np
 from WeatheringScore import compute_weather_score
 
+""" 
+Description
+Isomap을 기반으로 Manifold Graph를 구성함.
+
+원본 차원 위에서 유클리드 거리를 통해 직접적인 거리를 구하지 않고, 곡면 위에서의 측지선 거리를 측정하기 위한
+사전 작업으로 정의됨.
+
+KNN 규칙을 기반으로 epsilon을 적용해서 adaptive하게 인접 노드를 연결.
+- K개의 가장 인접한 노드를 연결 후보로 설정하고 이 중에서 epsilon 규칙을 위반하는 노드는 후보에서 제외
+- epsilon 규칙 : 연결 후보 노드 간의 평균 거리의 1.5배에 해당하는 값보다 먼 거리는 규칙 위반
+- 결론적으로 K개 이하의 노드 연결을 보장함.
+- 풍화 시퀀스의 방향성을 만들기 위해 연결 노드의 풍화 정도를 바탕으로 가중치 조정
+    -> 풍화 점수가 높은 노드일 경우 가중치를 작게, 반대의 경우 가중치를 크게 적용 
+
+"""
+
 
 def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
     """
@@ -60,6 +76,10 @@ def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
 
             delta = score_j - score_i
 
+
+            # 풍화가 진행되는 방향일수록 가중치를 작게 적용, 반대일 결우 가중치를 크게 적용하여
+            # Knn 연결 가능성을 조정. 최종적으로 연결되는 노드는 가능한 풍화도가 높은 노드 위주로 구성
+            # -> 역방향 trajectory 방지
             if delta >= 0:
                 # forward progression
                 progression_factor = 1.0 - 0.35 * delta

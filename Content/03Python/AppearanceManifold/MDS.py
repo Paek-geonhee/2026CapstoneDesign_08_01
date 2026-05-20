@@ -5,6 +5,13 @@ import cupy as cp
 
 import cupy as cp
 
+""" 
+Description
+Manifold Graph와 측지선 거리 행렬 바탕으로 Multidimentional Scaling 적용
+
+측지선 거리값을 최대한 유지한 상태로 저차원 공간으로 축소함.
+"""
+
 def Get_MDS_graph(D, dim=3, mode ="normal"):
 
     """
@@ -106,6 +113,13 @@ def Get_MDS_graph_CPU(D, dim=3):
     return Z
 
 
+
+
+
+
+
+
+# --------------------------------------- deprecated -----------------------------------------
 
 def visualize_MDS_Graph(Z, data_7d):
     """

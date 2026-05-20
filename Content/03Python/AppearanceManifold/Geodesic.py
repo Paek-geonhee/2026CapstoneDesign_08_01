@@ -2,8 +2,13 @@ from scipy.sparse import csr_matrix
 import numpy as np
 from scipy.sparse.csgraph import dijkstra
 
+""" 
+Description
+Weathering-Directed Adaptive Manifold Graph를 기반으로 각 노드 간의 측지선 거리 행렬을 생성
 
+단순히 각 노드들 사이에서 다익스트라 알고리즘을 활용.
 
+"""
 
 def Get_Geodesic_Distance_Matrix(edge_src, edge_dst, edge_weight, N):
 
@@ -21,16 +26,10 @@ def Get_Geodesic_Distance_Matrix(edge_src, edge_dst, edge_weight, N):
     """
 
     rows = np.concatenate([edge_src, edge_dst]).astype(np.float32)
-
     cols = np.concatenate([edge_dst, edge_src]).astype(np.float32)
-
     data = np.concatenate([edge_weight, edge_weight]).astype(np.float32)
 
-
-
     adj = csr_matrix((data, (rows, cols)), shape=(N, N))
-
-
 
     geodesic = dijkstra(adj, directed=False)
 

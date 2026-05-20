@@ -23,6 +23,9 @@ def build_weathering_trajectory(embedded, edge_src, edge_dst, edge_weight, start
     trajectory_indices  : (T,)
     """
 
+    # 마지막 노드를 기준으로, 최단 측지선을 유지하는 역방향 경로를 탐색하고, 최종적으로 경로를 뒤집어 실경로를 확보
+    # T는 해당 경로를 구성하는 인덱스(노드)의 개수를 의미
+
     N = embedded.shape[0]
 
 
