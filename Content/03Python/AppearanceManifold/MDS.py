@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import eigsh
+
 import matplotlib.pyplot as plt
 import cupy as cp
 
@@ -25,12 +26,78 @@ def Get_MDS_graph(D, dim=3, mode ="normal"):
     ----------
     """
 
-    if mode=="normal":
-        return Get_MDS_graph_CPU(D,dim)
+    #if mode=="normal":
+    #    return Get_MDS_graph_CPU(D,dim)
 
-    if mode=="gpu":
-        return Get_MDS_graph_GPU(D,dim)
+    #if mode=="gpu":
+    #    return Get_MDS_graph_GPU(D,dim)
 
+    N = D.shape[0]
+
+    D = np.asarray(D, dtype=np.float64)
+
+    finite_mask = np.isfinite(D)
+
+    D = D.copy()
+
+    D[~finite_mask] = np.max(D[finite_mask])
+
+    # =====================================================
+    # Double centering WITHOUT H matrix
+    # =====================================================
+
+    D2 = D * D
+
+    row_mean = np.mean(
+        D2,
+        axis=1,
+        keepdims=True
+    )
+
+    col_mean = np.mean(
+        D2,
+        axis=0,
+        keepdims=True
+    )
+
+    grand_mean = np.mean(D2)
+
+    B = -0.5 * (
+        D2
+        - row_mean
+        - col_mean
+        + grand_mean
+    )
+
+    # =====================================================
+    # numerical stabilization
+    # =====================================================
+
+    np.nan_to_num(B, copy=False)
+
+    B = 0.5 * (B + B.T)
+
+    # =====================================================
+    # TOP-K eigensolver
+    # =====================================================
+
+    evals, evecs = eigsh(
+        B,
+        k=dim,
+        which='LA'
+    )
+
+    idx = np.argsort(evals)[::-1]
+
+    evals = evals[idx]
+    evecs = evecs[:, idx]
+
+    Z = (
+        evecs
+        * np.sqrt(np.maximum(evals, 0))
+    )
+
+    return Z
 
 def Get_MDS_graph_GPU(D_cpu, dim=3):
     # 1. 데이터를 GPU로 전송

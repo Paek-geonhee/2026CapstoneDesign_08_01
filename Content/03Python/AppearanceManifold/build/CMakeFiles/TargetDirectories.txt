@@ -1,0 +1,3 @@
+/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/geodesic_backend.dir
+/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/edit_cache.dir
+/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/rebuild_cache.dir

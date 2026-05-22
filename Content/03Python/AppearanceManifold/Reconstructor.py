@@ -3,6 +3,7 @@ from sklearn.neighbors import NearestNeighbors
 
 import matplotlib.pyplot as plt
 import ipywidgets as widgets
+from PIL import Image
 
 def resample_trajectory(
     trajectory_points,
@@ -340,6 +341,68 @@ def build_weathering_sequence_semantic(
         steps.append(
             reconstructed.reshape(H, W, 7)
         )
+    # ----------------------------------------------------
+    # 4. Export middle weathering step
+    # ----------------------------------------------------
+
+    middle_step_idx = max_step // 2
+
+    middle_step = steps[middle_step_idx]
+
+    # ----------------------------------------------------
+    # BaseColor
+    # ----------------------------------------------------
+
+    basecolor = middle_step[:, :, 0:3]
+
+    basecolor_img = np.clip(
+        basecolor * 255.0,
+        0,
+        255
+    ).astype(np.uint8)
+
+    Image.fromarray(
+        basecolor_img
+    ).save(
+        "weathering_mid_basecolor.png"
+    )
+
+    # ----------------------------------------------------
+    # Specular
+    # ----------------------------------------------------
+
+    specular = middle_step[:, :, 3:6]
+
+    specular_img = np.clip(
+        specular * 255.0,
+        0,
+        255
+    ).astype(np.uint8)
+
+    Image.fromarray(
+        specular_img
+    ).save(
+        "weathering_mid_specular.png"
+    )
+
+    # ----------------------------------------------------
+    # Roughness
+    # ----------------------------------------------------
+
+    roughness = middle_step[:, :, 6]
+
+    roughness_img = np.clip(
+        roughness * 255.0,
+        0,
+        255
+    ).astype(np.uint8)
+
+    Image.fromarray(
+        roughness_img,
+        mode='L'
+    ).save(
+        "weathering_mid_roughness.png"
+    )
 
     return steps
 
@@ -416,3 +479,244 @@ def visualize_weathering_sequence(
     )
 
     plt.show()
+
+
+def build_weathering_sequence_trajectory_projection(
+    source_samples_7d,
+    target_samples_7d,
+
+    source_embedded,
+    target_embedded,
+
+    trajectory,
+
+    H,
+    W,
+
+    current_step,
+    total_step,
+
+    K=8,
+    blend_sigma=0.15,
+    nearest_blend_ratio=0.7
+):
+    """
+    Parameters
+    ----------
+    source_samples_7d : (N,7)
+        Initial material state
+
+    target_samples_7d : (N,7)
+        Final material state
+
+    source_embedded : (N,3)
+        Embedded latent coordinates of source
+
+    target_embedded : (N,3)
+        Embedded latent coordinates of target
+
+    trajectory : (T,3)
+        Resampled manifold trajectory
+
+    H, W : int
+
+    current_step : int
+    total_step   : int
+
+    K : int
+        Neighbor count for reconstruction
+
+    blend_sigma : float
+        Gaussian blend sigma
+
+    nearest_blend_ratio : float
+        0.0 = pure weighted blend
+        1.0 = pure nearest neighbor
+
+    Returns
+    -------
+    out : (H,W,7)
+    """
+
+    # --------------------------------------------------------
+    # 1. Progress ratio
+    # --------------------------------------------------------
+
+    alpha = current_step / max(total_step - 1, 1)
+
+    # --------------------------------------------------------
+    # 2. Build trajectory parameterization
+    # --------------------------------------------------------
+
+    T = trajectory.shape[0]
+
+    traj_s = np.linspace(
+        0.0,
+        1.0,
+        T,
+        dtype=np.float32
+    )
+
+    # --------------------------------------------------------
+    # 3. Projection helper
+    # --------------------------------------------------------
+
+    def project_to_trajectory(points, trajectory):
+
+        diff = (
+            points[:, None, :] -
+            trajectory[None, :, :]
+        )
+
+        dist2 = np.sum(diff * diff, axis=2)
+
+        nearest_idx = np.argmin(dist2, axis=1)
+
+        projected_s = traj_s[nearest_idx]
+
+        return projected_s, nearest_idx
+
+    # --------------------------------------------------------
+    # 4. Source / Target projection
+    # --------------------------------------------------------
+
+    source_s, _ = project_to_trajectory(
+        source_embedded,
+        trajectory
+    )
+
+    target_s, _ = project_to_trajectory(
+        target_embedded,
+        trajectory
+    )
+
+    # --------------------------------------------------------
+    # 5. Interpolate trajectory position
+    # --------------------------------------------------------
+
+    interp_s = (
+        (1.0 - alpha) * source_s +
+        alpha * target_s
+    )
+
+    interp_s = np.clip(
+        interp_s,
+        0.0,
+        1.0
+    )
+
+    # --------------------------------------------------------
+    # 6. Retrieve trajectory latent positions
+    # --------------------------------------------------------
+
+    interp_idx = np.round(
+        interp_s * (T - 1)
+    ).astype(np.int32)
+
+    interp_idx = np.clip(
+        interp_idx,
+        0,
+        T - 1
+    )
+
+    query_points = trajectory[interp_idx]
+
+    # --------------------------------------------------------
+    # 7. Build reconstruction KNN
+    # --------------------------------------------------------
+
+    combined_embedded = np.concatenate([
+        source_embedded,
+        target_embedded
+    ], axis=0)
+
+    combined_samples = np.concatenate([
+        source_samples_7d,
+        target_samples_7d
+    ], axis=0)
+
+    nn = NearestNeighbors(
+        n_neighbors=K
+    )
+
+    nn.fit(combined_embedded)
+
+    dists, indices = nn.kneighbors(query_points)
+
+    # --------------------------------------------------------
+    # 8. Reconstruction
+    # --------------------------------------------------------
+
+    N = query_points.shape[0]
+
+    out = np.zeros(
+        (N,7),
+        dtype=np.float32
+    )
+
+    for i in range(N):
+
+        candidate_idx = indices[i]
+        candidate_dist = dists[i]
+
+        candidate_samples = combined_samples[candidate_idx]
+
+        # ----------------------------------------
+        # Gaussian weights
+        # ----------------------------------------
+
+        weights = np.exp(
+            -(candidate_dist ** 2) /
+            (2 * blend_sigma * blend_sigma)
+        )
+
+        weights += 1e-8
+
+        weights /= np.sum(weights)
+
+        blended_sample = np.sum(
+            candidate_samples *
+            weights[:, None],
+            axis=0
+        )
+
+        # ----------------------------------------
+        # nearest sample
+        # ----------------------------------------
+
+        nearest_sample = candidate_samples[0]
+
+        # ----------------------------------------
+        # hybrid reconstruction
+        # ----------------------------------------
+
+        reconstructed = (
+            nearest_sample * nearest_blend_ratio +
+            blended_sample * (1.0 - nearest_blend_ratio)
+        )
+
+        out[i] = reconstructed
+
+    # --------------------------------------------------------
+    # 9. Clamp
+    # --------------------------------------------------------
+
+    out[:, :6] = np.clip(
+        out[:, :6],
+        0.0,
+        1.0
+    )
+
+    out[:, 6] = np.clip(
+        out[:, 6],
+        0.0,
+        1.0
+    )
+
+    # --------------------------------------------------------
+    # 10. Reshape
+    # --------------------------------------------------------
+
+    out = out.reshape(H, W, 7)
+
+    return out
