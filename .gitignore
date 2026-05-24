@@ -73,3 +73,11 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# ── GammaTon 플러그인 ──────────────────────────────────────────────────────────
+# Embree4 바이너리는 위의 *.dll / *.lib 규칙으로 자동 제외됨.
+# include/ 헤더는 텍스트이므로 git에 포함 (별도 예외 불필요).
+# DLL/LIB 설치 방법: README.md 참고
+
+# GammaTon 시뮬레이션 결과 텍스처 (로컬 생성물)
+Content/GammaTon/
