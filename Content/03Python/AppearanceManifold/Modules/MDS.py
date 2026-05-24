@@ -48,26 +48,13 @@ def Get_MDS_graph(D, dim=3, mode ="normal"):
 
     D2 = D * D
 
-    row_mean = np.mean(
-        D2,
-        axis=1,
-        keepdims=True
-    )
+    row_mean = np.mean(D2, axis=1, keepdims=True)
 
-    col_mean = np.mean(
-        D2,
-        axis=0,
-        keepdims=True
-    )
+    col_mean = np.mean(D2, axis=0, keepdims=True)
 
     grand_mean = np.mean(D2)
 
-    B = -0.5 * (
-        D2
-        - row_mean
-        - col_mean
-        + grand_mean
-    )
+    B = -0.5 * (D2 - row_mean - col_mean + grand_mean)
 
     # =====================================================
     # numerical stabilization
@@ -81,23 +68,62 @@ def Get_MDS_graph(D, dim=3, mode ="normal"):
     # TOP-K eigensolver
     # =====================================================
 
-    evals, evecs = eigsh(
-        B,
-        k=dim,
-        which='LA'
-    )
+    evals, evecs = eigsh(B, k=dim, which='LA')
 
     idx = np.argsort(evals)[::-1]
 
     evals = evals[idx]
     evecs = evecs[:, idx]
 
-    Z = (
-        evecs
-        * np.sqrt(np.maximum(evals, 0))
-    )
+    Z = evecs * np.sqrt(np.maximum(evals, 0))
 
     return Z
+
+
+def Get_MDS_graph_optimized(D, dim=3):
+    """
+    최적화된 MDS 구현: 메모리 복사 최소화 및 연산 효율화
+
+    -> 딱히 성능이 개선되지 않음. 기존 구현이 이미 상당히 최적화되어 있었음.
+    """
+    # 1. 입력 복사 최소화 (inplace 연산 활용)
+    D = np.ascontiguousarray(D, dtype=np.float64)
+    
+    # 2. NaN/Inf 처리 (최적화된 방식)
+    mask = ~np.isfinite(D)
+    if np.any(mask):
+        D[mask] = np.max(D[~mask])
+    
+    # 3. Double Centering 연산 최적화
+    # D2를 미리 할당하여 재사용
+    D2 = np.square(D, out=D) 
+    
+    row_mean = np.mean(D2, axis=1, keepdims=True)
+    col_mean = np.mean(D2, axis=0, keepdims=True)
+    grand_mean = np.mean(D2)
+    
+    # B 구성: 메모리 효율을 위해 직접 연산
+    B = -0.5 * (D2 - row_mean - col_mean + grand_mean)
+    
+    # 4. 수치 안정화 (대칭성 확보)
+    np.nan_to_num(B, copy=False)
+    B = 0.5 * (B + B.T)
+    
+    # 5. Eigsh 최적화
+    # 'which=LA'와 함께 'ncv' 파라미터를 조절하여 수렴 속도 향상
+    # ncv가 너무 작으면 느리고, 너무 크면 메모리를 많이 먹음
+    evals, evecs = eigsh(B, k=dim, which='LA', ncv=min(D.shape[0], max(2*dim+1, 20)))
+    
+    # 정렬 (eigsh는 기본적으로 오름차순 반환)
+    idx = np.argsort(evals)[::-1]
+    evals = evals[idx]
+    evecs = evecs[:, idx]
+    
+    # 결과 계산
+    Z = evecs * np.sqrt(np.maximum(evals, 0))
+    
+    return Z
+
 
 def Get_MDS_graph_GPU(D_cpu, dim=3):
     # 1. 데이터를 GPU로 전송

@@ -117,41 +117,41 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named geodesic_backend
+# Target rules for targets named mds
 
 # Build rule for target.
-geodesic_backend: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 geodesic_backend
-.PHONY : geodesic_backend
+mds: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 mds
+.PHONY : mds
 
 # fast build rule for target.
-geodesic_backend/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/geodesic_backend.dir/build.make CMakeFiles/geodesic_backend.dir/build
-.PHONY : geodesic_backend/fast
+mds/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mds.dir/build.make CMakeFiles/mds.dir/build
+.PHONY : mds/fast
 
-Geodesic_Backend.o: Geodesic_Backend.cpp.o
-.PHONY : Geodesic_Backend.o
+MDS.o: MDS.cpp.o
+.PHONY : MDS.o
 
 # target to build an object file
-Geodesic_Backend.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/geodesic_backend.dir/build.make CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o
-.PHONY : Geodesic_Backend.cpp.o
+MDS.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mds.dir/build.make CMakeFiles/mds.dir/MDS.cpp.o
+.PHONY : MDS.cpp.o
 
-Geodesic_Backend.i: Geodesic_Backend.cpp.i
-.PHONY : Geodesic_Backend.i
+MDS.i: MDS.cpp.i
+.PHONY : MDS.i
 
 # target to preprocess a source file
-Geodesic_Backend.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/geodesic_backend.dir/build.make CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.i
-.PHONY : Geodesic_Backend.cpp.i
+MDS.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mds.dir/build.make CMakeFiles/mds.dir/MDS.cpp.i
+.PHONY : MDS.cpp.i
 
-Geodesic_Backend.s: Geodesic_Backend.cpp.s
-.PHONY : Geodesic_Backend.s
+MDS.s: MDS.cpp.s
+.PHONY : MDS.s
 
 # target to generate assembly for a file
-Geodesic_Backend.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/geodesic_backend.dir/build.make CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.s
-.PHONY : Geodesic_Backend.cpp.s
+MDS.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mds.dir/build.make CMakeFiles/mds.dir/MDS.cpp.s
+.PHONY : MDS.cpp.s
 
 # Help Target
 help:
@@ -161,10 +161,10 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... geodesic_backend"
-	@echo "... Geodesic_Backend.o"
-	@echo "... Geodesic_Backend.i"
-	@echo "... Geodesic_Backend.s"
+	@echo "... mds"
+	@echo "... MDS.o"
+	@echo "... MDS.i"
+	@echo "... MDS.s"
 .PHONY : help
 
 

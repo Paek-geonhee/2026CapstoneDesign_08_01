@@ -69,28 +69,28 @@ include CMakeFiles/geodesic_backend.dir/progress.make
 # Include the compile flags for this target's objects.
 include CMakeFiles/geodesic_backend.dir/flags.make
 
-CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o: CMakeFiles/geodesic_backend.dir/flags.make
-CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o: ../Geodesic_Backend.cpp
-CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o: CMakeFiles/geodesic_backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o -MF CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o.d -o CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o -c /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/Geodesic_Backend.cpp
+CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o: CMakeFiles/geodesic_backend.dir/flags.make
+CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o: ../geodesic_backend.cpp
+CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o: CMakeFiles/geodesic_backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o -MF CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o.d -o CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o -c /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/geodesic_backend.cpp
 
-CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/Geodesic_Backend.cpp > CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.i
+CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/geodesic_backend.cpp > CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.i
 
-CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/Geodesic_Backend.cpp -o CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.s
+CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/geodesic_backend.cpp -o CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.s
 
 # Object files for target geodesic_backend
 geodesic_backend_OBJECTS = \
-"CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o"
+"CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o"
 
 # External object files for target geodesic_backend
 geodesic_backend_EXTERNAL_OBJECTS =
 
-geodesic_backend.cpython-312-x86_64-linux-gnu.so: CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o
+geodesic_backend.cpython-312-x86_64-linux-gnu.so: CMakeFiles/geodesic_backend.dir/geodesic_backend.cpp.o
 geodesic_backend.cpython-312-x86_64-linux-gnu.so: CMakeFiles/geodesic_backend.dir/build.make
 geodesic_backend.cpython-312-x86_64-linux-gnu.so: /usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so
 geodesic_backend.cpython-312-x86_64-linux-gnu.so: /usr/lib/x86_64-linux-gnu/libpthread.a

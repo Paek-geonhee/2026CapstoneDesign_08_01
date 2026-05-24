@@ -63,7 +63,7 @@ CMAKE_BINARY_DIR = /home/pgh/2026CapstoneDesign_08_01/Content/03Python/Appearanc
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all: CMakeFiles/geodesic_backend.dir/all
+all: CMakeFiles/mds.dir/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
@@ -71,34 +71,34 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean: CMakeFiles/geodesic_backend.dir/clean
+clean: CMakeFiles/mds.dir/clean
 .PHONY : clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/geodesic_backend.dir
+# Target rules for target CMakeFiles/mds.dir
 
 # All Build rule for target.
-CMakeFiles/geodesic_backend.dir/all:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/geodesic_backend.dir/build.make CMakeFiles/geodesic_backend.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/geodesic_backend.dir/build.make CMakeFiles/geodesic_backend.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles --progress-num=1,2 "Built target geodesic_backend"
-.PHONY : CMakeFiles/geodesic_backend.dir/all
+CMakeFiles/mds.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mds.dir/build.make CMakeFiles/mds.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mds.dir/build.make CMakeFiles/mds.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles --progress-num=1,2 "Built target mds"
+.PHONY : CMakeFiles/mds.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/geodesic_backend.dir/rule: cmake_check_build_system
+CMakeFiles/mds.dir/rule: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles 2
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/geodesic_backend.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/mds.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles 0
-.PHONY : CMakeFiles/geodesic_backend.dir/rule
+.PHONY : CMakeFiles/mds.dir/rule
 
 # Convenience name for target.
-geodesic_backend: CMakeFiles/geodesic_backend.dir/rule
-.PHONY : geodesic_backend
+mds: CMakeFiles/mds.dir/rule
+.PHONY : mds
 
 # clean rule for target.
-CMakeFiles/geodesic_backend.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/geodesic_backend.dir/build.make CMakeFiles/geodesic_backend.dir/clean
-.PHONY : CMakeFiles/geodesic_backend.dir/clean
+CMakeFiles/mds.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mds.dir/build.make CMakeFiles/mds.dir/clean
+.PHONY : CMakeFiles/mds.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

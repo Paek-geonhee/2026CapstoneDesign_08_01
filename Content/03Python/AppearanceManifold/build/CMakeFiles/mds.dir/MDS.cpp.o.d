@@ -1,5 +1,5 @@
-CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o: \
- /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/Geodesic_Backend.cpp \
+CMakeFiles/mds.dir/MDS.cpp.o: \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/MDS.cpp \
  /usr/include/stdc-predef.h \
  /home/pgh/miniforge3/envs/rapids-25.04/lib/python3.12/site-packages/pybind11/include/pybind11/pybind11.h \
  /home/pgh/miniforge3/envs/rapids-25.04/lib/python3.12/site-packages/pybind11/include/pybind11/detail/class.h \
@@ -593,4 +593,26 @@ CMakeFiles/geodesic_backend.dir/Geodesic_Backend.cpp.o: \
  /usr/include/eigen3/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h \
  /usr/include/eigen3/Eigen/src/Eigenvalues/RealQZ.h \
  /usr/include/eigen3/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h \
- /usr/include/c++/11/queue /usr/include/c++/11/bits/stl_queue.h
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/SymEigsSolver.h \
+ /usr/include/eigen3/Eigen/Core \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/HermEigsBase.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/Util/Version.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/Util/TypeTraits.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/Util/SelectionRule.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/Util/TypeTraits.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/Util/CompInfo.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/Util/SimpleRandom.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/MatOp/internal/ArnoldiOp.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/UpperHessenbergQR.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/../Util/TypeTraits.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/Givens.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/TridiagEigen.h \
+ /usr/include/eigen3/Eigen/Jacobi \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/Lanczos.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/Arnoldi.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/../MatOp/internal/ArnoldiOp.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/../Util/SimpleRandom.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/UpperHessenbergQR.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/LinAlg/DoubleShiftQR.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/MatOp/DenseSymMatProd.h \
+ /home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/spectra/include/Spectra/MatOp/DenseSymMatProd.h

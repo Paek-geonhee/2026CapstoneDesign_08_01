@@ -1,10 +1,10 @@
 import json
 import numpy as np
 
-from GeodesicEvaluator import evaluate_geodesic_matrix
-from KNNEvaluator import evaluate_knn_graph
-from MDSEvaluator import evaluate_mds_embedding
-from TrajectoryEvaluator import evaluate_trajectory
+from AppearanceManifold.LoggerModules.GeodesicEvaluator import evaluate_geodesic_matrix
+from AppearanceManifold.LoggerModules.KNNEvaluator import evaluate_knn_graph
+from AppearanceManifold.LoggerModules.MDSEvaluator import evaluate_mds_embedding
+from AppearanceManifold.LoggerModules.TrajectoryEvaluator import evaluate_trajectory
 
 
 class PipelineLogger:

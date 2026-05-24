@@ -3,6 +3,8 @@
 cmake 파일 찾기 : cmake .. (상위 폴더에서 CMakeLists.txt 파일 탐색)
 pybind 및 cmake 연결 : 
 python -m pybind11 --cmakedir / 
-cmake .. -Dpybind11_DIR=$(python -m pybind11 --cmakedir) / 
+cmake .. -Dpybind11_DIR=$(python -m pybind11 --cmakedir)
+
+
 cmake --build . --config Release
 -> 현재 디렉토리에 c++ pybind 모듈 생성
