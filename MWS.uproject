@@ -24,10 +24,6 @@
 		{
 			"Name": "GeometryScripting",
 			"Enabled": true
-		},
-		{
-			"Name": "GammaTon",
-			"Enabled": true
 		}
 	]
 }
