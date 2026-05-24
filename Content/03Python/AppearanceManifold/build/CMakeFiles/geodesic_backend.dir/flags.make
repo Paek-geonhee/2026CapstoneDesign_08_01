@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = -Dgeodesic_backend_EXPORTS
 
-CXX_INCLUDES = -isystem /home/pgh/miniforge3/envs/rapids-25.04/lib/python3.12/site-packages/pybind11/include -isystem /home/pgh/miniforge3/envs/rapids-25.04/include/python3.12
+CXX_INCLUDES = -isystem /home/pgh/miniforge3/envs/rapids-25.04/lib/python3.12/site-packages/pybind11/include -isystem /home/pgh/miniforge3/envs/rapids-25.04/include/python3.12 -isystem /usr/include/eigen3
 
 CXX_FLAGS = -fPIC -fvisibility=hidden -flto=auto -fno-fat-lto-objects -fopenmp
 

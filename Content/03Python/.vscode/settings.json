@@ -1,4 +1,8 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:system",
-    "cmake.sourceDirectory": "/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold"
+    "cmake.sourceDirectory": "/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold",
+
+    "python.defaultInterpreterPath": "/home/pgh/miniforge3/envs/rapids-25.04/bin/python",
+
+    "python.terminal.activateEnvironment": true
 }
