@@ -8,3 +8,7 @@ cmake .. -Dpybind11_DIR=$(python -m pybind11 --cmakedir)
 
 cmake --build . --config Release
 -> 현재 디렉토리에 c++ pybind 모듈 생성
+
+
+rm -rf *
+-> 모든 캐시 삭제 (Linux 기준)

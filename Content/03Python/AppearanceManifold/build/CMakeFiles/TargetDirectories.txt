@@ -1,3 +1,3 @@
-/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/mds.dir
-/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/edit_cache.dir
-/home/pgh/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/rebuild_cache.dir
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/geodesic_backend.dir
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/ZERO_CHECK.dir

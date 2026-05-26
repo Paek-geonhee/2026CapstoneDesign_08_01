@@ -1,0 +1,54 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCXXInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCheckCompilerFlagCommonPatterns.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCommonLanguageInclude.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeGenericSystem.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeInitializeConfigs.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeLanguageInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeParseImplicitLinkInfo.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeRCInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeSystemSpecificInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeSystemSpecificInitialize.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CheckCXXCompilerFlag.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/CheckCXXSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Compiler/CMakeCommonCompilerMacros.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Compiler/MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Compiler/MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Compiler/MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindOpenMP.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindPackageMessage.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindPython/Support.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/FindPython3.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CMakeCLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CMakeCXXLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CMakeCommonLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CheckCompilerFlag.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CheckFlagCommonConfig.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CheckSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Linker/MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Linker/MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Linker/MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Linker/Windows-MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Linker/Windows-MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Linker/Windows-MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-Initialize.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows.cmake
+C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/WindowsPaths.cmake
+C:/Users/user/AppData/Local/Programs/Python/Python311/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Common.cmake
+C:/Users/user/AppData/Local/Programs/Python/Python311/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Config.cmake
+C:/Users/user/AppData/Local/Programs/Python/Python311/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11ConfigVersion.cmake
+C:/Users/user/AppData/Local/Programs/Python/Python311/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11NewTools.cmake
+C:/Users/user/AppData/Local/Programs/Python/Python311/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Targets.cmake
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/CMakeLists.txt
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/4.3.2/CMakeCCompiler.cmake
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/4.3.2/CMakeCXXCompiler.cmake
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/4.3.2/CMakeRCCompiler.cmake
+C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/CMakeFiles/4.3.2/CMakeSystem.cmake
+C:/Users/user/vcpkg/buildtrees/eigen3/x64-windows-rel/Eigen3Config.cmake
+C:/Users/user/vcpkg/buildtrees/eigen3/x64-windows-rel/Eigen3ConfigVersion.cmake
+C:/Users/user/vcpkg/buildtrees/eigen3/x64-windows-rel/Eigen3Targets.cmake

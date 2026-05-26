@@ -1,0 +1,10 @@
+^C:\USERS\USER\DESKTOP\2026CAPSTONEDESIGN_08_01\CONTENT\03PYTHON\APPEARANCEMANIFOLD\BUILD\CMAKEFILES\9A19D9F952C324906F13997463E81CBF\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold -BC:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/user/Desktop/2026CapstoneDesign_08_01/Content/03Python/AppearanceManifold/build/geodesic_backend.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
