@@ -24,7 +24,8 @@ public:
                                  const FString&        ActorName,
                                  FLinearColor          DustColor,
                                  FLinearColor          PigmentColor,
-                                 int                   AtlasUVChannel = 1,
-                                 UTexture2D*           DustTexture    = nullptr,
-                                 UTexture2D*           PigmentTexture = nullptr);
+                                 int                   AtlasUVChannel  = 1,
+                                 UTexture2D*           DustTexture     = nullptr,
+                                 UTexture2D*           PigmentTexture  = nullptr,
+                                 float                 DustVisibility  = 1.0f);
 };

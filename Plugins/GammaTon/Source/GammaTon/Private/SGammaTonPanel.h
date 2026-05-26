@@ -39,20 +39,15 @@ private:
     UTexture2D* DustTexture_    = nullptr;
     UTexture2D* PigmentTexture_ = nullptr;
 
+    // ── Dust/pigment tint intensity [0=no color change, 1=full effect] ────
+    float DustVisibility_ = 1.0f;
+
     // ── Per-actor γ-reflectance fallback defaults ─────────────────────────
     float ReflDeltaS = 0.5f;
     float ReflDeltaP = 0.0f;
     float ReflDeltaF = 0.0f;
 
     // ── Ton Types (P2-D: multiple simultaneous γ-ton types) ───────────────
-    struct FTransportRuleEntry {
-        int   Event       = 2;   // GTTransportEvent: 0=PICKUP 1=FLOW 2=SETTLE
-        int   ToEntity    = 1;   // GTTransportEntity: 0=TON 1=SURFACE
-        int   ToChannel   = 0;   // GTTransportChannel: 0=SD 1=SP 2=SR 3=SH
-        int   FromEntity  = 0;
-        int   FromChannel = 0;
-        float Coeff       = 1.0f;
-    };
     struct FTonTypeEntry {
         FString Name   = TEXT("Ton Type");
         float   Weight = 1.0f;
@@ -65,24 +60,16 @@ private:
         float SrcCX = 0.0f, SrcCY = 0.0f, SrcCZ = 1400.0f;
         float SrcDX = 0.0f, SrcDY = 0.0f, SrcDZ = -1.0f;
         float SrcSpread = 5.0f, SrcHalfX = 500.0f, SrcHalfZ = 500.0f;
-        // Transport rules
-        TArray<TSharedPtr<FTransportRuleEntry>> Rules;
-        TSharedPtr<class SBox>                  RulesContainer;
         // Collapse state — toggled by the card header button
-        bool bCollapsed      = false;  // hides body (motion/carrier/source/rules)
-        bool bRulesCollapsed = false;  // hides only the rules list inside the card
+        bool bCollapsed = false;
     };
 
     TArray<TSharedPtr<FTonTypeEntry>> TonTypes_;
     TSharedPtr<class SBox>            TonTypesContainer_;
-    TArray<TSharedPtr<FString>>       EventOptions_;
-    TArray<TSharedPtr<FString>>       EntityOptions_;
-    TArray<TSharedPtr<FString>>       ChannelOptions_;
 
     void   SetTonTypes(const std::vector<GTTonType>& types);
     void   RebuildTonTypesUI();
     FReply OnAddTonTypeClicked();
-    void   RebuildRulesUI(TSharedPtr<FTonTypeEntry> Entry);
     GTTonType     EntryToTonType(const FTonTypeEntry& e) const;
     GTGammaSource EntryToSource (const FTonTypeEntry& e) const;
 
@@ -99,8 +86,9 @@ private:
         float InitSR = 0.0f;  // 초기 거칠기
         float InitSH = 0.0f;  // 초기 습도
     };
-    TArray<TSharedPtr<FActorReflEntry>> ActorReflEntries_;
-    TSharedPtr<class SBox>              ActorReflContainer_;
+    TArray<TSharedPtr<FActorReflEntry>>         ActorReflEntries_;
+    TMap<FString, TSharedPtr<FActorReflEntry>> AllActorSettings_;
+    TSharedPtr<class SBox>                     ActorReflContainer_;
     FReply OnRefreshActorsClicked();
     void   RebuildActorReflUI();
     TArray<GTGammaReflectance> BuildPerActorRefl   (int32 NumActors) const;
@@ -116,8 +104,15 @@ private:
     TArray<TSharedPtr<FString>>              SourceOptions_;
     TArray<TSharedPtr<FString>>              ScenarioOptions_;
 
+    // ── Undo snapshot (Run 직전 머티리얼 1단계 저장) ──────────────────────
+    struct FUndoEntry {
+        TWeakObjectPtr<UStaticMeshComponent> Component;
+        TWeakObjectPtr<UMaterialInterface>   Material;
+    };
+    TArray<FUndoEntry> UndoSnapshot_;
+
     FReply OnRunClicked();
-    FReply OnReapplyClicked();
+    FReply OnUndoClicked();
     FReply OnTraceRayClicked();
     void   SetStatus(const FString& Msg);
 

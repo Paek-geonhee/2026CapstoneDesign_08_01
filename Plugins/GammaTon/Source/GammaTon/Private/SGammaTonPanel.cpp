@@ -19,7 +19,9 @@
 #include "GameFramework/Actor.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/FileManager.h"
 #include "PropertyCustomizationHelpers.h"
 
 #define LOCTEXT_NAMESPACE "GammaTon"
@@ -33,8 +35,11 @@ static FSlateFontInfo GGetKorFont(int32 Size = 9)
         if (Root.IsEmpty()) Root = TEXT("C:\\Windows");
         return FPaths::Combine(Root, TEXT("Fonts"), TEXT("malgun.ttf"));
     }();
-    if (FPaths::FileExists(MalgunPath))
+    if (FPaths::FileExists(MalgunPath)) {
+        PRAGMA_DISABLE_DEPRECATION_WARNINGS
         return FSlateFontInfo(MalgunPath, Size);
+        PRAGMA_ENABLE_DEPRECATION_WARNINGS
+    }
 #endif
     return FCoreStyle::GetDefaultFontStyle("Regular", Size);
 }
@@ -43,6 +48,8 @@ static FSlateFontInfo GGetKorFont(int32 Size = 9)
 
 struct FGTScenario {
     const TCHAR* Name;
+    const TCHAR* Desc;  // shown in the info panel below the combo
+    const TCHAR* Tags;  // one-line summary: source type, dominant motion, notes
     // Sim
     int32 NTons; int32 MaxBounces; float DepositK; float FlowStep; int32 NumIter;
     // Motion probabilities + γ-reflectance
@@ -66,10 +73,12 @@ struct FGTScenario {
     FLinearColor PigCol;
 };
 
-// Cross-channel columns: RustFromHumidity | HumidityDecay | PigmentCoversDust
 static const FGTScenario GScenarios[] = {
-    //  0 — Custom: balanced starting point
-    { TEXT("Custom (manual)"),
+    // ── 0  Custom ─────────────────────────────────────────────────────────────
+    { TEXT("Custom"),
+      TEXT("No preset applied. Configure every parameter manually. "
+           "Use this when you need precise control or are experimenting with a new weathering type."),
+      TEXT("Manual  ·  all parameters editable"),
       30000, 10, 0.50f, 30.f, 20,
       0.5f, 0.0f, 0.2f,  0.5f, 0.0f, 0.0f,  50.f,
       1.f, 0.f, 0.f, 0.f,
@@ -77,9 +86,13 @@ static const FGTScenario GScenarios[] = {
       0.0f, 0.0f, 0.0f,
       FLinearColor(0.42f,0.38f,0.32f,1), FLinearColor(0.15f,0.10f,0.06f,1) },
 
-    //  1 — Stain Bleeding (논문 §3.5 예시: kp=0.8, kf=0.2, Δp=0.4, Δf=0.05)
-    //  kp 큰 초기값 → 첫 히트 후 kf로 전환되며 표면을 따라 흐름
-    { TEXT("얼룩 번짐 (Stain Bleeding)  [논문 §3.5]"),
+    // ── 1  Stain Bleeding ─────────────────────────────────────────────────────
+    { TEXT("Stain Bleeding"),
+      TEXT("Pigment bounces off the surface, then drains along it under gravity, "
+           "pooling in joints, cracks, and lower edges. "
+           "Reproduces rust streaks, water stains, or paint runoff draining downward. "
+           "(Paper example, §3.5)"),
+      TEXT("Single-ton  ·  AREA_TOP  ·  kp → kf dominant  ·  strong flow"),
       40000, 15, 0.45f, 35.f, 30,
       0.0f, 0.8f, 0.2f,  0.0f, 0.4f, 0.05f,  60.f,
       0.0f, 0.9f, 0.05f, 0.15f,
@@ -87,9 +100,13 @@ static const FGTScenario GScenarios[] = {
       0.0f, 0.0f, 0.0f,
       FLinearColor(0.32f,0.22f,0.10f,1), FLinearColor(0.60f,0.28f,0.05f,1) },
 
-    //  2 — Metallic Patina (논문 §3.5 예시: ks=1, sp=1, ENVIRONMENT)
-    //  모든 방향 대기 산화 — 톤이 여러 번 반사 후 표면에 녹청 침착
-    { TEXT("금속 녹청 (Metallic Patina)  [논문 §3.5]"),
+    // ── 2  Metallic Patina ────────────────────────────────────────────────────
+    { TEXT("Metallic Patina"),
+      TEXT("Atmospheric oxidation arriving from all directions simultaneously. "
+           "Tons reflect many times before settling, building up a green-blue patina "
+           "concentrated on upward-facing and exposed metal surfaces. "
+           "(Paper example, §3.5)"),
+      TEXT("Single-ton  ·  ENVIRONMENT  ·  reflection-dominant  ·  pigment-only carrier"),
       50000, 20, 0.30f, 20.f, 40,
       1.0f, 0.0f, 0.0f,  0.15f, 0.0f, 0.0f,  50.f,
       0.0f, 1.0f, 0.2f, 0.0f,
@@ -97,9 +114,13 @@ static const FGTScenario GScenarios[] = {
       0.0f, 0.0f, 0.0f,
       FLinearColor(0.18f,0.42f,0.20f,1), FLinearColor(0.08f,0.35f,0.12f,1) },
 
-    //  3 — Urban Rain Soiling (멀티톤: 빗물 + 바람 먼지)
-    //  빗물: kf 지배 + 습도; 먼지/매연: 측면 바람 (ApplyScenario에서 2번째 타입 추가)
-    { TEXT("도시 강수 소일링 (Urban Rain)  [멀티톤]"),
+    // ── 3  Urban Rain ─────────────────────────────────────────────────────────
+    { TEXT("Urban Rain"),
+      TEXT("Two weathering agents simulate the layered grime on city buildings: "
+           "vertical rainfall that flows down facades depositing dirt in crevices, "
+           "and a separate wind-blown dust/soot stream arriving from the side. "
+           "Cross-channel humidity decay keeps wet areas visually distinct."),
+      TEXT("Multi-ton  ·  AREA_TOP + DIRECTIONAL  ·  high humidity  ·  dual deposit"),
       50000, 12, 0.35f, 50.f, 30,
       0.15f, 0.1f, 0.65f,  0.4f, 0.1f, 0.05f,  50.f,
       0.3f, 0.05f, 0.0f, 0.85f,
@@ -107,9 +128,13 @@ static const FGTScenario GScenarios[] = {
       0.015f, 0.5f, 0.0f,
       FLinearColor(0.35f,0.30f,0.25f,1), FLinearColor(0.12f,0.09f,0.06f,1) },
 
-    //  4 — Desert Sand Deposition
-    //  측면 바람으로 날리는 모래 — kp 바운스 + 약한 flow
-    { TEXT("사막 풍사 퇴적 (Desert Sand)"),
+    // ── 4  Desert Sand ────────────────────────────────────────────────────────
+    { TEXT("Desert Sand"),
+      TEXT("Wind-driven sand particles arrive from the side at a shallow angle, "
+           "bouncing off hard surfaces before settling. "
+           "Warm tan grit accumulates on windward faces, ledges, and any surface "
+           "that intercepts the flow; sheltered areas stay relatively clean."),
+      TEXT("Single-ton  ·  DIRECTIONAL  ·  kp-dominant  ·  side wind  ·  high dust"),
       40000, 14, 0.45f, 20.f, 25,
       0.50f, 0.30f, 0.1f,  0.4f, 0.2f, 0.05f,  40.f,
       1.0f, 0.25f, 0.1f, 0.0f,
@@ -117,9 +142,13 @@ static const FGTScenario GScenarios[] = {
       0.0f, 0.0f, 0.0f,
       FLinearColor(0.74f,0.62f,0.38f,1), FLinearColor(0.68f,0.52f,0.28f,1) },
 
-    //  5 — Industrial Soot
-    //  상향 대면 집중 침착 (kp bounce 큼) + 어두운 pigment
-    { TEXT("산업 매연 (Industrial Soot)"),
+    // ── 5  Industrial Soot ────────────────────────────────────────────────────
+    { TEXT("Industrial Soot"),
+      TEXT("Airborne carbon particles fall from above and bounce multiple times "
+           "before settling. Dark grey-black coating builds up uniformly on "
+           "horizontal ledges and any upward-facing geometry. "
+           "Use for chimneys, factory rooftops, or urban structures near heavy industry."),
+      TEXT("Single-ton  ·  AREA_TOP  ·  kp-dominant  ·  dark pigment  ·  high dust"),
       45000, 16, 0.40f, 25.f, 25,
       0.40f, 0.40f, 0.1f,  0.35f, 0.15f, 0.05f,  45.f,
       0.6f, 0.95f, 0.15f, 0.0f,
@@ -127,9 +156,13 @@ static const FGTScenario GScenarios[] = {
       0.0f, 0.0f, 0.0f,
       FLinearColor(0.15f,0.13f,0.11f,1), FLinearColor(0.05f,0.04f,0.03f,1) },
 
-    //  6 — Pipe Drip
-    //  점 소스에서 흘러내리는 물 — kf 지배, sh 높음, rust 빠르게 성장
-    { TEXT("파이프 누수 (Pipe Drip)"),
+    // ── 6  Pipe Drip ──────────────────────────────────────────────────────────
+    { TEXT("Pipe Drip"),
+      TEXT("A single point source simulates a leaking pipe or joint dripping water. "
+           "High surface-flow probability means tons travel far down the geometry, "
+           "building a narrow rust-and-mineral streak directly below the leak. "
+           "Roughness (sr) picked up from the surface amplifies surface detail."),
+      TEXT("Single-ton  ·  POINT  ·  kf-dominant  ·  high humidity  ·  rust growth"),
       30000, 15, 0.55f, 40.f, 25,
       0.05f, 0.05f, 0.8f,  0.3f, 0.1f, 0.05f,  50.f,
       0.2f, 0.5f, 0.05f, 0.95f,
@@ -137,11 +170,13 @@ static const FGTScenario GScenarios[] = {
       0.03f, 0.4f, 0.0f,
       FLinearColor(0.42f,0.38f,0.28f,1), FLinearColor(0.35f,0.20f,0.08f,1) },
 
-    //  7 — Biological Growth / Moss (멀티톤: 수분 + 이끼 포자)
-    //  수분(sh): kf 흐름; 이끼 포자(sp): 정착 후 pigment 침착 (ApplyScenario에서 2번째 추가)
-    //  kf 0.75→0.92: 수분이 표면 따라 더 많이 흘러 저지대/오목한 곳에 집중
-    //  humidity_decay 0.25→0.65: 노출면 습도 빠르게 증발 → 지속적으로 젖은 곳에만 sh 유지
-    { TEXT("생물학적 성장 / 이끼 (Biological Growth)  [멀티톤]"),
+    // ── 7  Biological Growth ──────────────────────────────────────────────────
+    { TEXT("Biological Growth"),
+      TEXT("Two agents work together: moisture flows into low and concave areas, "
+           "and moss spores settle preferentially where surfaces remain damp. "
+           "Rapid humidity decay prevents oversaturation on exposed faces, "
+           "so green growth concentrates realistically in shaded crevices and corners."),
+      TEXT("Multi-ton  ·  AREA_TOP + ENVIRONMENT  ·  very high flow  ·  humidity-gated"),
       50000, 12, 0.35f, 55.f, 40,
       0.1f, 0.05f, 0.92f,  0.3f, 0.05f, 0.05f,  50.f,
       0.05f, 0.7f, 0.0f, 0.95f,
@@ -149,9 +184,13 @@ static const FGTScenario GScenarios[] = {
       0.005f, 0.65f, 0.12f,
       FLinearColor(0.22f,0.26f,0.15f,1), FLinearColor(0.08f,0.20f,0.04f,1) },
 
-    //  8 — Coastal Salt Spray
-    //  해풍으로 측면 소금 분사 — sr(거칠기) 증가, sd(염분 퇴적)
-    { TEXT("해안 염분 분사 (Coastal Salt Spray)"),
+    // ── 8  Coastal Salt Spray ─────────────────────────────────────────────────
+    { TEXT("Coastal Salt Spray"),
+      TEXT("Sea wind carries salt crystals from the side at a low angle. "
+           "Windward surfaces are roughened (sr) by crystal abrasion and coated "
+           "with pale white mineral deposits. Sheltered faces and recesses "
+           "receive far less exposure, creating strong directional contrast."),
+      TEXT("Single-ton  ·  DIRECTIONAL  ·  side wind  ·  high roughness  ·  white tint"),
       40000, 12, 0.40f, 20.f, 25,
       0.5f, 0.3f, 0.1f,  0.4f, 0.15f, 0.05f,  40.f,
       0.85f, 0.15f, 0.5f, 0.25f,
@@ -316,11 +355,6 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
     for (int i = 0; i < GNumScenarios; i++)
         ScenarioOptions_.Add(MakeShared<FString>(GScenarios[i].Name));
 
-    EventOptions_   = { MakeShared<FString>(TEXT("PICKUP")), MakeShared<FString>(TEXT("FLOW")), MakeShared<FString>(TEXT("SETTLE")) };
-    EntityOptions_  = { MakeShared<FString>(TEXT("TON")),    MakeShared<FString>(TEXT("SURFACE")) };
-    ChannelOptions_ = { MakeShared<FString>(TEXT("sd")),     MakeShared<FString>(TEXT("sp")),
-                        MakeShared<FString>(TEXT("sr")),     MakeShared<FString>(TEXT("sh")) };
-
     ChildSlot
     [
         SNew(SBox).MinDesiredWidth(440.f)
@@ -353,6 +387,37 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                         })
                     ]
                 )
+            ]
+            // ── Scenario description panel ─────────────────────────────────────
+            + SScrollBox::Slot().Padding(12, 4, 12, 8)
+            [
+                SNew(SBorder)
+                .BorderBackgroundColor(FLinearColor(0.08f, 0.10f, 0.14f, 1.f))
+                .Padding(FMargin(10.f, 7.f))
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 4)
+                    [
+                        SNew(STextBlock)
+                        .Font(GGetKorFont(8))
+                        .ColorAndOpacity(FLinearColor(0.55f, 0.75f, 1.0f, 1.f))
+                        .Text_Lambda([this]() {
+                            int32 Idx = FMath::Clamp(ScenarioIdx, 0, GNumScenarios - 1);
+                            return FText::FromString(GScenarios[Idx].Tags);
+                        })
+                    ]
+                    + SVerticalBox::Slot().AutoHeight()
+                    [
+                        SNew(STextBlock)
+                        .Font(GGetKorFont(9))
+                        .ColorAndOpacity(FLinearColor(0.80f, 0.80f, 0.80f, 1.f))
+                        .AutoWrapText(true)
+                        .Text_Lambda([this]() {
+                            int32 Idx = FMath::Clamp(ScenarioIdx, 0, GNumScenarios - 1);
+                            return FText::FromString(GScenarios[Idx].Desc);
+                        })
+                    ]
+                ]
             ]
 
             // ── Simulation ────────────────────────────────────────────────────
@@ -526,6 +591,20 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 )
             ]
 
+            // ── Dust Visibility ───────────────────────────────────────────────
+            + SScrollBox::Slot().Padding(12, 6, 12, 2)
+            [
+                MakeRow(TEXT("Dust Visibility"),
+                    SNew(SSpinBox<float>)
+                    .MinValue(0.f).MaxValue(1.f).Delta(0.01f)
+                    .Value_Lambda([this]() { return DustVisibility_; })
+                    .OnValueChanged_Lambda([this](float V) { DustVisibility_ = V; })
+                    .ToolTipText(LOCTEXT("TipDustVis",
+                        "풍화 색조 강도 (0 = 색상 변화 없음, 1 = 완전 적용).\n"
+                        "시뮬레이션 결과(sd/sp)에 곱해지는 전역 스케일."))
+                )
+            ]
+
             // ── Run ───────────────────────────────────────────────────────────
             + SScrollBox::Slot().Padding(8, 14, 8, 4)
             [
@@ -534,16 +613,15 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .OnClicked(this, &SGammaTonPanel::OnRunClicked)
             ]
 
-            // ── Reapply Material ──────────────────────────────────────────────
+            // ── Undo ─────────────────────────────────────────────────────────
             + SScrollBox::Slot().Padding(8, 2, 8, 4)
             [
                 SNew(SButton).HAlign(HAlign_Center)
-                .Text(LOCTEXT("ReapplyBtn", "↺  Reapply Material (no re-simulation)"))
-                .OnClicked(this, &SGammaTonPanel::OnReapplyClicked)
-                .ToolTipText(LOCTEXT("TipReapply",
-                    "시뮬레이션 없이 저장된 AgingTex를 그대로 사용하여\n"
-                    "현재 색상/텍스처 설정을 다시 적용합니다.\n"
-                    "DustColor, PigmentColor, DustTexture 등을 바꾼 뒤 빠르게 확인할 때 사용."))
+                .Text(LOCTEXT("UndoBtn", "↩  Undo Last Simulation"))
+                .OnClicked(this, &SGammaTonPanel::OnUndoClicked)
+                .ToolTipText(LOCTEXT("TipUndo",
+                    "마지막 Run 직전 상태로 머티리얼을 되돌립니다.\n"
+                    "Run을 한 번 실행한 뒤에만 동작합니다."))
             ]
 
             // ── Trace Single Ray ───────────────────────────────────────────────
@@ -606,18 +684,8 @@ GTTonType SGammaTonPanel::EntryToTonType(const FTonTypeEntry& e) const
     T.weight       = e.Weight;
     T.init_motion  = { e.MotionKs, e.MotionKp, e.MotionKf };
     T.init_carrier = { e.CarrierSD, e.CarrierSP, e.CarrierSR, e.CarrierSH };
-    T.sources      = { EntryToSource(e) };
-    T.rules.clear();
-    for (const auto& R : e.Rules) {
-        GTTransportRule rule;
-        rule.event        = (GTTransportEvent)R->Event;
-        rule.to_entity    = (GTTransportEntity)R->ToEntity;
-        rule.to_channel   = (GTTransportChannel)R->ToChannel;
-        rule.from_entity  = (GTTransportEntity)R->FromEntity;
-        rule.from_channel = (GTTransportChannel)R->FromChannel;
-        rule.coeff        = R->Coeff;
-        T.rules.push_back(rule);
-    }
+    T.sources = { EntryToSource(e) };
+    T.rules   = GTDefaultTransportRules();
     return T;
 }
 
@@ -644,95 +712,14 @@ void SGammaTonPanel::SetTonTypes(const std::vector<GTTonType>& types)
             E->SrcHalfX  = src.area_half_x;
             E->SrcHalfZ  = src.area_half_z;
         }
-        for (const auto& r : t.rules) {
-            auto RE = MakeShared<FTransportRuleEntry>();
-            RE->Event       = (int)r.event;
-            RE->ToEntity    = (int)r.to_entity;
-            RE->ToChannel   = (int)r.to_channel;
-            RE->FromEntity  = (int)r.from_entity;
-            RE->FromChannel = (int)r.from_channel;
-            RE->Coeff       = r.coeff;
-            E->Rules.Add(RE);
-        }
         TonTypes_.Add(E);
     }
     RebuildTonTypesUI();
 }
 
-void SGammaTonPanel::RebuildRulesUI(TSharedPtr<FTonTypeEntry> Entry)
-{
-    if (!Entry.IsValid() || !Entry->RulesContainer.IsValid()) return;
-
-    TSharedRef<SVerticalBox> VBox = SNew(SVerticalBox);
-
-    for (int32 ri = 0; ri < Entry->Rules.Num(); ri++) {
-        TSharedPtr<FTransportRuleEntry> RE = Entry->Rules[ri];
-
-        auto MakeCombo = [this](TArray<TSharedPtr<FString>>& Opts, int& Field) -> TSharedRef<SWidget> {
-            int CIdx = FMath::Clamp(Field, 0, Opts.Num() - 1);
-            return SNew(SBox).WidthOverride(68.f)
-            [
-                SNew(SComboBox<TSharedPtr<FString>>)
-                .OptionsSource(&Opts)
-                .InitiallySelectedItem(Opts[CIdx])
-                .OnSelectionChanged_Lambda([&Field, &Opts](TSharedPtr<FString> Item, ESelectInfo::Type) {
-                    for (int i = 0; i < Opts.Num(); i++)
-                        if (Opts[i] == Item) { Field = i; break; }
-                })
-                .OnGenerateWidget_Lambda([](TSharedPtr<FString> Item) {
-                    return SNew(STextBlock).Text(FText::FromString(*Item));
-                })
-                [
-                    SNew(STextBlock).Text_Lambda([&Field, &Opts]() {
-                        return FText::FromString(*Opts[FMath::Clamp(Field, 0, Opts.Num()-1)]);
-                    })
-                ]
-            ];
-        };
-
-        VBox->AddSlot().AutoHeight().Padding(0, 1)
-        [
-            SNew(SHorizontalBox)
-            + SHorizontalBox::Slot().AutoWidth().Padding(1,0) [ MakeCombo(EventOptions_,   RE->Event) ]
-            + SHorizontalBox::Slot().AutoWidth().Padding(1,0) [ MakeCombo(EntityOptions_,  RE->ToEntity) ]
-            + SHorizontalBox::Slot().AutoWidth().Padding(1,0) [ MakeCombo(ChannelOptions_, RE->ToChannel) ]
-            + SHorizontalBox::Slot().AutoWidth().Padding(3,0).VAlign(VAlign_Center)
-            [ SNew(STextBlock).Text(FText::FromString(TEXT("<-"))) ]
-            + SHorizontalBox::Slot().AutoWidth().Padding(1,0) [ MakeCombo(EntityOptions_,  RE->FromEntity) ]
-            + SHorizontalBox::Slot().AutoWidth().Padding(1,0) [ MakeCombo(ChannelOptions_, RE->FromChannel) ]
-            + SHorizontalBox::Slot().AutoWidth().Padding(3,0).VAlign(VAlign_Center)
-            [ SNew(STextBlock).Text(FText::FromString(TEXT("x"))) ]
-            + SHorizontalBox::Slot().FillWidth(1.f) [ MakeFloatBox(RE->Coeff) ]
-            + SHorizontalBox::Slot().AutoWidth().Padding(2,0)
-            [
-                SNew(SButton).Text(FText::FromString(TEXT("X")))
-                .OnClicked_Lambda([this, Entry, ri]() -> FReply {
-                    if (ri < Entry->Rules.Num()) {
-                        Entry->Rules.RemoveAt(ri);
-                        RebuildRulesUI(Entry);
-                    }
-                    return FReply::Handled();
-                })
-            ]
-        ];
-    }
-
-    Entry->RulesContainer->SetContent(VBox);
-}
-
 FReply SGammaTonPanel::OnAddTonTypeClicked()
 {
-    GTTonType def;
     TonTypes_.Add(MakeShared<FTonTypeEntry>());
-    // Give default rules to the new type
-    const auto& defRules = GTDefaultTransportRules();
-    for (const auto& r : defRules) {
-        auto RE = MakeShared<FTransportRuleEntry>();
-        RE->Event = (int)r.event; RE->ToEntity = (int)r.to_entity;
-        RE->ToChannel = (int)r.to_channel; RE->FromEntity = (int)r.from_entity;
-        RE->FromChannel = (int)r.from_channel; RE->Coeff = r.coeff;
-        TonTypes_.Last()->Rules.Add(RE);
-    }
     RebuildTonTypesUI();
     return FReply::Handled();
 }
@@ -753,7 +740,6 @@ void SGammaTonPanel::RebuildTonTypesUI()
 
     for (int32 ti = 0; ti < TonTypes_.Num(); ti++) {
         TSharedPtr<FTonTypeEntry> Entry = TonTypes_[ti];
-        TSharedPtr<SBox> RulesBox;
 
         auto MakeSrcCombo = [this, Entry]() -> TSharedRef<SWidget> {
             int32 CIdx = FMath::Clamp(Entry->SourceTypeIdx, 0, SourceOptions_.Num() - 1);
@@ -774,13 +760,8 @@ void SGammaTonPanel::RebuildTonTypesUI()
             ];
         };
 
-        // Build SBox for rules and store back into Entry
-        SAssignNew(RulesBox, SBox);
-        Entry->RulesContainer = RulesBox;
-        RebuildRulesUI(Entry);  // fill initial content
-
         // Build the card as a plain SVerticalBox so we can use C++ if-blocks for
-        // the collapsible body and rules sections.
+        // the collapsible body.
         TSharedRef<SVerticalBox> CardBox = SNew(SVerticalBox);
 
         // ── Header (always visible) ───────────────────────────────────────────
@@ -929,57 +910,6 @@ void SGammaTonPanel::RebuildTonTypesUI()
                 ]
             ];
 
-            // Transport Rules header row (with its own collapse toggle)
-            CardBox->AddSlot().AutoHeight().Padding(0, 4)
-            [
-                SNew(SHorizontalBox)
-                // Rules collapse toggle ▼/▶
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0,0,4,0)
-                [
-                    SNew(SButton)
-                    .Text_Lambda([Entry]() {
-                        return FText::FromString(Entry->bRulesCollapsed ? TEXT("▶") : TEXT("▼"));
-                    })
-                    .OnClicked_Lambda([this, Entry]() -> FReply {
-                        Entry->bRulesCollapsed = !Entry->bRulesCollapsed;
-                        RebuildTonTypesUI();
-                        return FReply::Handled();
-                    })
-                ]
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0,0,8,0)
-                [ SNew(STextBlock).Text(LOCTEXT("RulesLbl", "Transport Rules")).ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f)) ]
-                + SHorizontalBox::Slot().AutoWidth().Padding(0,0,4,0)
-                [
-                    SNew(SButton).Text(LOCTEXT("AddRule", "+ Rule"))
-                    .OnClicked_Lambda([this, Entry]() -> FReply {
-                        Entry->Rules.Add(MakeShared<FTransportRuleEntry>());
-                        RebuildRulesUI(Entry);
-                        return FReply::Handled();
-                    })
-                ]
-                + SHorizontalBox::Slot().AutoWidth()
-                [
-                    SNew(SButton).Text(LOCTEXT("ResetRules", "Reset"))
-                    .OnClicked_Lambda([this, Entry]() -> FReply {
-                        Entry->Rules.Empty();
-                        for (const auto& r : GTDefaultTransportRules()) {
-                            auto RE = MakeShared<FTransportRuleEntry>();
-                            RE->Event = (int)r.event; RE->ToEntity = (int)r.to_entity;
-                            RE->ToChannel = (int)r.to_channel; RE->FromEntity = (int)r.from_entity;
-                            RE->FromChannel = (int)r.from_channel; RE->Coeff = r.coeff;
-                            Entry->Rules.Add(RE);
-                        }
-                        RebuildRulesUI(Entry);
-                        return FReply::Handled();
-                    })
-                ]
-            ];
-
-            // Rules list (hidden when bRulesCollapsed)
-            if (!Entry->bRulesCollapsed)
-            {
-                CardBox->AddSlot().AutoHeight() [ RulesBox.ToSharedRef() ];
-            }
         }
 
         VBox->AddSlot().AutoHeight().Padding(0, 4)
@@ -1002,22 +932,22 @@ FReply SGammaTonPanel::OnRefreshActorsClicked()
     for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
         if (AActor* A = Cast<AActor>(*It)) Actors.Add(A);
 
-    // Preserve existing values for actors that are already in the list.
-    TMap<FString, TSharedPtr<FActorReflEntry>> Existing;
+    // Flush current entries into the persistent map before rebuilding.
     for (auto& E : ActorReflEntries_)
-        Existing.Add(E->Name, E);
+        AllActorSettings_.Add(E->Name, E);
 
     ActorReflEntries_.Empty();
     for (AActor* A : Actors) {
         FString Name = A->GetActorLabel();  // Outliner 표시 이름 사용
-        if (Existing.Contains(Name)) {
-            ActorReflEntries_.Add(Existing[Name]);
+        if (AllActorSettings_.Contains(Name)) {
+            ActorReflEntries_.Add(AllActorSettings_[Name]);
         } else {
             auto E = MakeShared<FActorReflEntry>();
             E->Name   = Name;
             E->DeltaS = ReflDeltaS;
             E->DeltaP = ReflDeltaP;
             E->DeltaF = ReflDeltaF;
+            AllActorSettings_.Add(Name, E);
             ActorReflEntries_.Add(E);
         }
     }
@@ -1191,6 +1121,7 @@ FReply SGammaTonPanel::OnRunClicked()
 
     GTSimulator Sim(Scene.surfels, Intersector, Scene.meshes, Config, &Scene.textures);
 
+    TArray<GTIterationStats> PerIterStats;
     GTIterationStats Total;
     {
         FScopedSlowTask Task(NumIterations,
@@ -1200,7 +1131,9 @@ FReply SGammaTonPanel::OnRunClicked()
             Task.EnterProgressFrame(1.f,
                 FText::Format(LOCTEXT("IterFmt", "Iteration {0}/{1}"), Iter+1, NumIterations));
             if (Task.ShouldCancel()) break;
-            Total.accumulate(Sim.runIteration());
+            GTIterationStats IterStat = Sim.runIteration();
+            Total.accumulate(IterStat);
+            PerIterStats.Add(IterStat);
             // Cross-channel material interactions (paper §3.4)
             GTCrossChannelRules CCRules;
             CCRules.rust_from_humidity  = CrossRustFromHumidity;
@@ -1217,6 +1150,17 @@ FReply SGammaTonPanel::OnRunClicked()
     for (auto& Tex : Scene.textures)
         Tex.blur(2);
 
+    // Snapshot pre-simulation materials for one-level undo
+    UndoSnapshot_.Empty();
+    for (int i = 0; i < Scene.components.Num(); i++) {
+        if (UStaticMeshComponent* SMC = Scene.components[i]) {
+            FUndoEntry E;
+            E.Component = SMC;
+            E.Material  = SMC->GetMaterial(0);
+            UndoSnapshot_.Add(E);
+        }
+    }
+
     // Save textures and apply materials
     int Applied = 0;
     for (int i = 0; i < (int)Scene.textures.size(); i++) {
@@ -1227,71 +1171,134 @@ FReply SGammaTonPanel::OnRunClicked()
             FGammaTonTextureBridge::ApplyToComponent(
                 Scene.components[i], Tex, Name,
                 ScenarioDustColor, ScenarioPigmentColor, UVCh,
-                DustTexture_, PigmentTexture_);
+                DustTexture_, PigmentTexture_, DustVisibility_);
             Applied++;
         }
     }
 
+    // ── Build & save simulation log ───────────────────────────────────────
+    FString LogFilePath;
+    {
+        static const TCHAR* SrcNames[] = {
+            TEXT("AREA_TOP"), TEXT("DIRECTIONAL"), TEXT("POINT"), TEXT("ENVIRONMENT") };
+        FDateTime Now = FDateTime::Now();
+        FString Log;
+
+        Log += TEXT("=== GammaTon Simulation Log ===\n");
+        Log += FString::Printf(TEXT("Timestamp      : %s\n\n"),
+            *Now.ToString(TEXT("%Y-%m-%d %H:%M:%S")));
+
+        // Parameters
+        Log += TEXT("--- Parameters ---\n");
+        Log += FString::Printf(TEXT("Scenario       : %s\n"),    **ScenarioOptions_[ScenarioIdx]);
+        Log += FString::Printf(TEXT("γ-tons / iter  : %d\n"),    NTonsPerIter);
+        Log += FString::Printf(TEXT("Iterations run : %d / %d\n"), PerIterStats.Num(), NumIterations);
+        Log += FString::Printf(TEXT("Max bounces    : %d\n"),    MaxBounces);
+        Log += FString::Printf(TEXT("Deposit K      : %.3f\n"),  DepositK);
+        Log += FString::Printf(TEXT("Flow step (cm) : %.1f\n"),  FlowStep);
+        Log += FString::Printf(TEXT("Texture size   : %d px\n"), TextureSize);
+        Log += FString::Printf(TEXT("Bounce dist    : %.1f cm\n"), BounceDistance);
+        Log += FString::Printf(TEXT("Parabola grav  : %.3f\n"),  ParabolaGravity);
+        Log += FString::Printf(TEXT("Cross rust     : %.4f\n"),  CrossRustFromHumidity);
+        Log += FString::Printf(TEXT("Cross sh decay : %.4f\n"),  CrossHumidityDecay);
+        Log += FString::Printf(TEXT("Cross sp->sd   : %.4f\n\n"), CrossPigmentCoversDust);
+
+        // Ton Types
+        Log += TEXT("--- Ton Types ---\n");
+        for (int32 ti = 0; ti < TonTypes_.Num(); ti++) {
+            const auto& E = *TonTypes_[ti];
+            Log += FString::Printf(TEXT("[Type %d: %s]  weight=%.2f\n"), ti + 1, *E.Name, E.Weight);
+            Log += FString::Printf(TEXT("  Motion : ks=%.3f  kp=%.3f  kf=%.3f\n"),
+                E.MotionKs, E.MotionKp, E.MotionKf);
+            Log += FString::Printf(TEXT("  Carrier: sd=%.3f  sp=%.3f  sr=%.3f  sh=%.3f\n"),
+                E.CarrierSD, E.CarrierSP, E.CarrierSR, E.CarrierSH);
+            int32 SrcIdx = FMath::Clamp(E.SourceTypeIdx, 0, 3);
+            Log += FString::Printf(
+                TEXT("  Source : %s  center=(%.0f,%.0f,%.0f)  dir=(%.2f,%.2f,%.2f)  spread=%.1f deg\n"),
+                SrcNames[SrcIdx],
+                E.SrcCX, E.SrcCY, E.SrcCZ,
+                E.SrcDX, E.SrcDY, E.SrcDZ, E.SrcSpread);
+        }
+        Log += TEXT("\n");
+
+        // Per-Actor Settings
+        Log += TEXT("--- Per-Actor Settings ---\n");
+        if (ActorReflEntries_.Num() == Actors.Num()) {
+            for (const auto& E : ActorReflEntries_) {
+                Log += FString::Printf(TEXT("[%s]\n"), *E->Name);
+                Log += FString::Printf(TEXT("  Ds=%.3f  Dp=%.3f  Df=%.3f\n"),
+                    E->DeltaS, E->DeltaP, E->DeltaF);
+                Log += FString::Printf(TEXT("  Init: sd=%.3f  sp=%.3f  sr=%.3f  sh=%.3f\n"),
+                    E->InitSD, E->InitSP, E->InitSR, E->InitSH);
+            }
+        } else {
+            Log += FString::Printf(TEXT("Global (fallback): Ds=%.3f  Dp=%.3f  Df=%.3f\n"),
+                ReflDeltaS, ReflDeltaP, ReflDeltaF);
+        }
+        Log += TEXT("\n");
+
+        // Per-Iteration Stats
+        Log += TEXT("--- Per-Iteration Stats ---\n");
+        Log += FString::Printf(TEXT("%-6s  %-8s  %-8s  %-10s  %-8s  %-8s  %-8s  %-8s\n"),
+            TEXT("Iter"), TEXT("Settled"), TEXT("Escaped"), TEXT("AvgBounce"),
+            TEXT("Reflect"), TEXT("Bounce"), TEXT("Flow"), TEXT("Settle"));
+        for (int32 i = 0; i < PerIterStats.Num(); i++) {
+            const GTIterationStats& S = PerIterStats[i];
+            Log += FString::Printf(TEXT("%-6d  %-8d  %-8d  %-10.2f  %-8d  %-8d  %-8d  %-8d\n"),
+                i + 1, S.settled, S.escaped, S.avgBounces(),
+                S.ev_reflect, S.ev_bounce, S.ev_flow, S.ev_settle);
+        }
+        Log += TEXT("\n");
+
+        // Summary
+        Log += TEXT("--- Summary ---\n");
+        Log += FString::Printf(TEXT("Total settled  : %d\n"),   Total.settled);
+        Log += FString::Printf(TEXT("Total escaped  : %d\n"),   Total.escaped);
+        Log += FString::Printf(TEXT("Avg bounces    : %.2f\n"), Total.avgBounces());
+        Log += FString::Printf(TEXT("Events         : reflect=%d  bounce=%d  flow=%d  settle=%d\n"),
+            Total.ev_reflect, Total.ev_bounce, Total.ev_flow, Total.ev_settle);
+        Log += FString::Printf(TEXT("Actors applied : %d\n"),   Applied);
+
+        FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GammaTonLogs"));
+        IFileManager::Get().MakeDirectory(*Dir, true);
+        LogFilePath = FPaths::Combine(Dir,
+            FString::Printf(TEXT("GT_%s.txt"), *Now.ToString(TEXT("%Y%m%d_%H%M%S"))));
+        FFileHelper::SaveStringToFile(Log, *LogFilePath,
+            FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    }
+
     SetStatus(FString::Printf(
-        TEXT("Done!  %d iters | Settled: %d | Escaped: %d | Avg bounces: %.2f\n"
+        TEXT("Done!  %d/%d iters | Settled: %d | Escaped: %d | Avg bounces: %.2f\n"
              "reflect=%d  bounce=%d  flow=%d  settle=%d\n"
-             "Textures saved to /Game/GammaTon/ (%d actors)."),
-        NumIterations,
+             "Textures saved to /Game/GammaTon/ (%d actors).\n"
+             "Log: %s"),
+        PerIterStats.Num(), NumIterations,
         Total.settled, Total.escaped, Total.avgBounces(),
         Total.ev_reflect, Total.ev_bounce, Total.ev_flow, Total.ev_settle,
-        Applied));
+        Applied, *LogFilePath));
 
     return FReply::Handled();
 }
 
-// ── Reapply Material ──────────────────────────────────────────────────────────
-//
-// Re-applies the AgingTex already saved in /Game/GammaTon/ with the current panel
-// color and texture settings — no simulation.  Useful when the user changes
-// DustColor, PigmentColor, or detail textures without wanting to re-run γ-tons.
+// ── Undo Last Simulation ──────────────────────────────────────────────────────
 
-FReply SGammaTonPanel::OnReapplyClicked()
+FReply SGammaTonPanel::OnUndoClicked()
 {
-    TArray<AActor*> Actors;
-    for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
-        if (AActor* A = Cast<AActor>(*It)) Actors.Add(A);
-
-    if (Actors.IsEmpty()) {
-        SetStatus(TEXT("No actors selected."));
+    if (UndoSnapshot_.IsEmpty()) {
+        SetStatus(TEXT("Nothing to undo — run simulation first."));
         return FReply::Handled();
     }
 
-    int Applied = 0;
-    for (int32 ai = 0; ai < Actors.Num(); ai++) {
-        AActor* Actor = Actors[ai];
-        if (!Actor) continue;
-        UStaticMeshComponent* SMC = Actor->FindComponentByClass<UStaticMeshComponent>();
-        if (!SMC) continue;
-
-        FString Name   = Actor->GetName();
-        FString Safe   = Name.Replace(TEXT(" "), TEXT("_"));
-        FString TexRef = TEXT("/Game/GammaTon/") + Safe + TEXT("_Dust.") + Safe + TEXT("_Dust");
-
-        UTexture2D* AgingTex = LoadObject<UTexture2D>(nullptr, *TexRef);
-        if (!AgingTex) {
-            SetStatus(FString::Printf(TEXT("No saved AgingTex for '%s' — run simulation first."), *Name));
-            continue;
+    int Restored = 0;
+    for (auto& E : UndoSnapshot_) {
+        if (E.Component.IsValid()) {
+            E.Component->SetMaterial(0, E.Material.Get());
+            Restored++;
         }
-
-        // Determine atlas UV channel from mesh (same logic as BuildScene)
-        int UVCh = 1;
-        if (UStaticMesh* SM = SMC->GetStaticMesh())
-            if (SM->GetRenderData() && !SM->GetRenderData()->LODResources.IsEmpty())
-                UVCh = (SM->GetRenderData()->LODResources[0].VertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords() > 1) ? 1 : 0;
-
-        FGammaTonTextureBridge::ApplyToComponent(
-            SMC, AgingTex, Name,
-            ScenarioDustColor, ScenarioPigmentColor, UVCh,
-            DustTexture_, PigmentTexture_);
-        Applied++;
     }
+    UndoSnapshot_.Empty();
 
-    SetStatus(FString::Printf(TEXT("Reapplied material to %d actor(s)."), Applied));
+    SetStatus(FString::Printf(TEXT("Reverted %d actor(s) to pre-simulation material."), Restored));
     return FReply::Handled();
 }
 

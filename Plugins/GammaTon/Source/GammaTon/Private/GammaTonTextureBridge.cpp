@@ -181,6 +181,10 @@ static void InjectAgingOverlay(UMaterial* Mat, int AtlasUVChannel)
     RoughnessScale->ParameterName = TEXT("RoughnessScale");
     RoughnessScale->DefaultValue  = 0.35f;
 
+    auto* DustVisibility = Add(NewObject<UMaterialExpressionScalarParameter>(Mat), -200, 500);
+    DustVisibility->ParameterName = TEXT("DustVisibility");
+    DustVisibility->DefaultValue  = 1.0f;
+
     // DuplicateObject can fail to preserve BaseColor expression for UE4-format assets.
     // Insert a parameter fallback so ApplyToComponent can supply the texture via MID.
     if (!OrigColor) {
@@ -191,18 +195,27 @@ static void InjectAgingOverlay(UMaterial* Mat, int AtlasUVChannel)
         UE_LOG(LogTemp, Log, TEXT("[GammaTon] InjectAgingOverlay: OrigColor null — inserted GammaTon_OrigBaseColor param"));
     }
 
-    // BaseColor: Lerp(OrigColor, DustEffect, sd) → Lerp(_, PigmentEffect, sp) → × (1-sh)
+    // BaseColor: Lerp(OrigColor, DustEffect, sd×vis) → Lerp(_, PigmentEffect, sp×vis) → × (1-sh)
+    // DustVisibility scales both sd and sp Lerp alphas so the user can dial back color tint.
+    auto* AlphaSD = Add(NewObject<UMaterialExpressionMultiply>(Mat), -650, 620);
+    AlphaSD->A.Expression  = AgingTex;
+    AlphaSD->A.OutputIndex = 1; // R = sd
+    AlphaSD->B.Expression  = DustVisibility;
+
+    auto* AlphaSP = Add(NewObject<UMaterialExpressionMultiply>(Mat), -400, 620);
+    AlphaSP->A.Expression  = AgingTex;
+    AlphaSP->A.OutputIndex = 2; // G = sp
+    AlphaSP->B.Expression  = DustVisibility;
+
     auto* Lerp1 = Add(NewObject<UMaterialExpressionLinearInterpolate>(Mat), -650, 500);
     if (OrigColor) { Lerp1->A.Expression = OrigColor; Lerp1->A.OutputIndex = OrigColorOut; }
-    Lerp1->B.Expression      = DustEffect;
-    Lerp1->Alpha.Expression  = AgingTex;
-    Lerp1->Alpha.OutputIndex = 1; // R = sd
+    Lerp1->B.Expression     = DustEffect;
+    Lerp1->Alpha.Expression = AlphaSD;
 
     auto* Lerp2 = Add(NewObject<UMaterialExpressionLinearInterpolate>(Mat), -400, 500);
-    Lerp2->A.Expression      = Lerp1;
-    Lerp2->B.Expression      = PigmentEffect;
-    Lerp2->Alpha.Expression  = AgingTex;
-    Lerp2->Alpha.OutputIndex = 2; // G = sp
+    Lerp2->A.Expression     = Lerp1;
+    Lerp2->B.Expression     = PigmentEffect;
+    Lerp2->Alpha.Expression = AlphaSP;
 
     auto* WetMul = Add(NewObject<UMaterialExpressionMultiply>(Mat), 50, 400);
     WetMul->A.Expression  = AgingTex;
@@ -242,7 +255,8 @@ static void InjectAgingOverlay(UMaterial* Mat, int AtlasUVChannel)
 void FGammaTonTextureBridge::ApplyToComponent(
     UStaticMeshComponent* Comp, UTexture2D* AgingTexture,
     const FString& ActorName, FLinearColor DustColor, FLinearColor PigmentColor,
-    int AtlasUVChannel, UTexture2D* DustTexture, UTexture2D* PigmentTexture)
+    int AtlasUVChannel, UTexture2D* DustTexture, UTexture2D* PigmentTexture,
+    float DustVisibility)
 {
     if (!Comp || !AgingTexture) return;
 
@@ -285,18 +299,20 @@ void FGammaTonTextureBridge::ApplyToComponent(
     // Stale caches (missing DustTexture) trigger a regeneration for multi-texture blending.
     UMaterial* DustMat = LoadObject<UMaterial>(nullptr, *MatRef);
     if (DustMat) {
-        bool bHasAgingTex = false, bHasDustTex = false;
+        bool bHasAgingTex = false, bHasDustTex = false, bHasDustVis = false;
         for (UMaterialExpression* Expr : DustMat->GetExpressionCollection().Expressions) {
             if (auto* P = Cast<UMaterialExpressionTextureSampleParameter2D>(Expr)) {
-                if (P->ParameterName == TEXT("AgingTex"))   bHasAgingTex = true;
+                if (P->ParameterName == TEXT("AgingTex"))    bHasAgingTex = true;
                 if (P->ParameterName == TEXT("DustTexture")) bHasDustTex  = true;
             }
+            if (auto* S = Cast<UMaterialExpressionScalarParameter>(Expr))
+                if (S->ParameterName == TEXT("DustVisibility")) bHasDustVis = true;
         }
 
         UMaterialEditorOnlyData* CachedEd = DustMat->GetEditorOnlyData();
         bool bHasBaseColor = CachedEd && (CachedEd->BaseColor.Expression != nullptr);
 
-        if (!bHasAgingTex || !bHasDustTex || !bHasBaseColor) {
+        if (!bHasAgingTex || !bHasDustTex || !bHasDustVis || !bHasBaseColor) {
             UE_LOG(LogTemp, Log, TEXT("[GammaTon] Cached DustMat outdated — regenerating"));
             DustMat = nullptr;
         }
@@ -401,9 +417,10 @@ void FGammaTonTextureBridge::ApplyToComponent(
     }
 
     // Aging parameters last so they win any name collision.
-    MID->SetTextureParameterValue(TEXT("AgingTex"),    AgingTexture);
-    MID->SetVectorParameterValue(TEXT("DustColor"),    DustColor);
-    MID->SetVectorParameterValue(TEXT("PigmentColor"), PigmentColor);
+    MID->SetTextureParameterValue(TEXT("AgingTex"),       AgingTexture);
+    MID->SetVectorParameterValue(TEXT("DustColor"),       DustColor);
+    MID->SetVectorParameterValue(TEXT("PigmentColor"),    PigmentColor);
+    MID->SetScalarParameterValue(TEXT("DustVisibility"),  FMath::Clamp(DustVisibility, 0.f, 1.f));
     if (DustTexture)    MID->SetTextureParameterValue(TEXT("DustTexture"),    DustTexture);
     if (PigmentTexture) MID->SetTextureParameterValue(TEXT("PigmentTexture"), PigmentTexture);
     Comp->SetMaterial(0, MID);
