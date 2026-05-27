@@ -6,6 +6,7 @@
 #include "Engine/Texture2D.h"
 
 #include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
@@ -23,6 +24,8 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/FileManager.h"
 #include "PropertyCustomizationHelpers.h"
+#include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/Colors/SColorPicker.h"
 
 #define LOCTEXT_NAMESPACE "GammaTon"
 
@@ -330,10 +333,24 @@ TSharedRef<SWidget> SGammaTonPanel::MakeIntBox(int32& Val) {
         .OnValueChanged_Lambda([&Val](int32 v) { Val = v; });
 }
 TSharedRef<SWidget> SGammaTonPanel::MakeSrcFloatBox(float& Val) {
+    // Spread 전용 (0~180도), 범위를 좁혀서 드래그 감도 현실화
     return SNew(SSpinBox<float>)
-        .MinValue(-100000.f).MaxValue(100000.f)
+        .MinValue(0.f).MaxValue(180.f).Delta(1.f)
         .Value_Lambda([&Val]() { return Val; })
         .OnValueChanged_Lambda([this, &Val](float v) { Val = v; RefreshVisualizer(); });
+}
+TSharedRef<SWidget> SGammaTonPanel::MakeDirFloatBox(float& Val) {
+    return SNew(SSpinBox<float>)
+        .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
+        .Value_Lambda([&Val]() { return Val; })
+        .OnValueChanged_Lambda([this, &Val](float v) { Val = v; RefreshVisualizer(); });
+}
+// CX/CY/CZ 전용 — 드래그 없이 직접 타이핑
+TSharedRef<SWidget> SGammaTonPanel::MakePosEntryBox(float& Val) {
+    return SNew(SNumericEntryBox<float>)
+        .AllowSpin(false)
+        .Value_Lambda([&Val]() { return TOptional<float>(Val); })
+        .OnValueCommitted_Lambda([this, &Val](float v, ETextCommit::Type) { Val = v; RefreshVisualizer(); });
 }
 TSharedRef<SWidget> SGammaTonPanel::MakeUnitBox(float& Val) {
     return SNew(SSpinBox<float>)
@@ -551,6 +568,62 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                     .Text(LOCTEXT("NoActors", "(Click Refresh to populate from current selection)"))
                     .ColorAndOpacity(FLinearColor(0.5f, 0.5f, 0.5f, 1.f))
                 ]
+            ]
+
+            // ── Colors ───────────────────────────────────────────────────────
+            + SScrollBox::Slot().Padding(8, 8, 8, 2)
+            [ SNew(STextBlock).Text(LOCTEXT("ColHdr", "── Colors ───────────────────────────────────")) ]
+            + SScrollBox::Slot().Padding(12, 2)
+            [
+                MakeRow(TEXT("Dust Color"),
+                    SNew(SBox).HeightOverride(20.f)
+                    [
+                        SNew(SColorBlock)
+                        .Color_Lambda([this]() { return ScenarioDustColor; })
+                        .OnMouseButtonDown_Lambda([this](const FGeometry&, const FPointerEvent& E) -> FReply {
+                            if (E.GetEffectingButton() == EKeys::LeftMouseButton) {
+                                FColorPickerArgs Args;
+                                Args.bIsModal         = true;
+                                Args.bUseAlpha        = false;
+                                Args.InitialColor     = ScenarioDustColor;
+                                Args.OnColorCommitted = FOnLinearColorValueChanged::CreateLambda(
+                                    [this](FLinearColor C) { ScenarioDustColor = C; });
+                                OpenColorPicker(Args);
+                            }
+                            return FReply::Handled();
+                        })
+                        .ToolTipText(LOCTEXT("TipDustCol",
+                            "먼지/소일(sd) 색상.\n"
+                            "sd 값이 높은 픽셀일수록 이 색으로 Lerp됨.\n"
+                            "클릭하면 색상 피커가 열림."))
+                    ]
+                )
+            ]
+            + SScrollBox::Slot().Padding(12, 2)
+            [
+                MakeRow(TEXT("Pigment Color"),
+                    SNew(SBox).HeightOverride(20.f)
+                    [
+                        SNew(SColorBlock)
+                        .Color_Lambda([this]() { return ScenarioPigmentColor; })
+                        .OnMouseButtonDown_Lambda([this](const FGeometry&, const FPointerEvent& E) -> FReply {
+                            if (E.GetEffectingButton() == EKeys::LeftMouseButton) {
+                                FColorPickerArgs Args;
+                                Args.bIsModal         = true;
+                                Args.bUseAlpha        = false;
+                                Args.InitialColor     = ScenarioPigmentColor;
+                                Args.OnColorCommitted = FOnLinearColorValueChanged::CreateLambda(
+                                    [this](FLinearColor C) { ScenarioPigmentColor = C; });
+                                OpenColorPicker(Args);
+                            }
+                            return FReply::Handled();
+                        })
+                        .ToolTipText(LOCTEXT("TipPigCol",
+                            "안료/이끼/녹(sp) 색상.\n"
+                            "sp 값이 높은 픽셀일수록 이 색으로 Lerp됨.\n"
+                            "클릭하면 색상 피커가 열림."))
+                    ]
+                )
             ]
 
             // ── Detail Textures ───────────────────────────────────────────────
@@ -883,22 +956,55 @@ void SGammaTonPanel::RebuildTonTypesUI()
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CX"), MakeSrcFloatBox(Entry->SrcCX)) ]
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CY"), MakeSrcFloatBox(Entry->SrcCY)) ]
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CZ"), MakeSrcFloatBox(Entry->SrcCZ)) ]
+                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CX"), MakePosEntryBox(Entry->SrcCX)) ]
+                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CY"), MakePosEntryBox(Entry->SrcCY)) ]
+                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CZ"), MakePosEntryBox(Entry->SrcCZ)) ]
             ];
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("DX"), MakeSrcFloatBox(Entry->SrcDX)) ]
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("DY"), MakeSrcFloatBox(Entry->SrcDY)) ]
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("DZ"), MakeSrcFloatBox(Entry->SrcDZ)) ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    MakeC(TEXT("DX"), SNew(SSpinBox<float>)
+                        .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->SrcDX; })
+                        .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDX = v; RefreshVisualizer(); })
+                        .ToolTipText(LOCTEXT("TipDX", "방향 벡터 X 성분 (-1 ~ 1)\n내부에서 자동 정규화됨.\n예) (1,0,0) = +X축 방향, (-1,0,0) = -X축 방향")))
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    MakeC(TEXT("DY"), SNew(SSpinBox<float>)
+                        .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->SrcDY; })
+                        .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDY = v; RefreshVisualizer(); })
+                        .ToolTipText(LOCTEXT("TipDY", "방향 벡터 Y 성분 (-1 ~ 1)\n내부에서 자동 정규화됨.")))
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    MakeC(TEXT("DZ"), SNew(SSpinBox<float>)
+                        .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->SrcDZ; })
+                        .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDZ = v; RefreshVisualizer(); })
+                        .ToolTipText(LOCTEXT("TipDZ", "방향 벡터 Z 성분 (-1 ~ 1)\n내부에서 자동 정규화됨.\n예) (0,0,-1) = 아래 방향 (기본값)")))
+                ]
             ];
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
                 + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("Sprd"), MakeSrcFloatBox(Entry->SrcSpread)) ]
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("HalfX"), MakeSrcFloatBox(Entry->SrcHalfX)) ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    MakeC(TEXT("HalfX"), SNew(SSpinBox<float>)
+                        .MinValue(0.f).MaxValue(5000.f).Delta(1.f)
+                        .Value_Lambda([Entry]() { return Entry->SrcHalfX; })
+                        .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcHalfX = v; RefreshVisualizer(); })
+                        .ToolTipText(LOCTEXT("TipHalfX",
+                            "방출 영역 반너비 (cm)\n"
+                            "· AREA_TOP: 수평 직사각형의 X 반폭\n"
+                            "· DIRECTIONAL: 빔 단면 접선 반폭\n"
+                            "· ENVIRONMENT: 구(sphere) 반지름\n"
+                            "· POINT: 무시됨")))
+                ]
                 + SHorizontalBox::Slot().FillWidth(1.f)
                 [
                     SNew(SBox)
@@ -906,7 +1012,18 @@ void SGammaTonPanel::RebuildTonTypesUI()
                         return (Entry->SourceTypeIdx == 3)
                             ? EVisibility::Collapsed : EVisibility::Visible;
                     })
-                    [ MakeC(TEXT("HalfZ"), MakeSrcFloatBox(Entry->SrcHalfZ)) ]
+                    [
+                        MakeC(TEXT("HalfZ"), SNew(SSpinBox<float>)
+                            .MinValue(0.f).MaxValue(5000.f).Delta(1.f)
+                            .Value_Lambda([Entry]() { return Entry->SrcHalfZ; })
+                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcHalfZ = v; RefreshVisualizer(); })
+                            .ToolTipText(LOCTEXT("TipHalfZ",
+                                "방출 영역 반깊이 (cm)\n"
+                                "· AREA_TOP: 수평 직사각형의 Y 반폭\n"
+                                "· DIRECTIONAL: 빔 단면 종축 반폭\n"
+                                "· ENVIRONMENT: 미사용 (자동 숨김)\n"
+                                "· POINT: 무시됨")))
+                    ]
                 ]
             ];
 
@@ -981,11 +1098,38 @@ void SGammaTonPanel::RebuildActorReflUI()
                 .ColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.5f, 1.f))
             ]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Δs  (ks decay)"), MakeFloatBox(Entry->DeltaS)) ]
+            [ MakeRow(TEXT("    Δs  (ks decay)"),
+                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
+                .Value_Lambda([Entry]() { return Entry->DeltaS; })
+                .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaS = v; })
+                .ToolTipText(LOCTEXT("TipDeltaS",
+                    "ks(반구 반사) 감쇠율 — 바운스마다 ks를 이 값만큼 줄임.\n"
+                    "높을수록 입자가 빨리 정착 → 표면 근처에만 쌓임.\n"
+                    "0 = 감쇠 없음 (무한 반사), 1 = 첫 충돌에서 즉시 정착.\n"
+                    "권장: 0.3~0.7"))
+            )]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Δp  (kp decay)"), MakeFloatBox(Entry->DeltaP)) ]
+            [ MakeRow(TEXT("    Δp  (kp decay)"),
+                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
+                .Value_Lambda([Entry]() { return Entry->DeltaP; })
+                .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaP = v; })
+                .ToolTipText(LOCTEXT("TipDeltaP",
+                    "kp(포물선 반사) 감쇠율 — 바운스마다 kp를 이 값만큼 줄임.\n"
+                    "감쇠된 kp는 kf(표면 흐름)로 전환됨 → 흐름 자국 형성.\n"
+                    "높을수록 포물선 궤적이 빨리 사라지고 흘러내림이 커짐.\n"
+                    "권장: 0.0~0.3"))
+            )]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Δf  (kf decay)"), MakeFloatBox(Entry->DeltaF)) ]
+            [ MakeRow(TEXT("    Δf  (kf decay)"),
+                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
+                .Value_Lambda([Entry]() { return Entry->DeltaF; })
+                .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaF = v; })
+                .ToolTipText(LOCTEXT("TipDeltaF",
+                    "kf(표면 흐름) 감쇠율 — 흐름 이동마다 kf를 이 값만큼 줄임.\n"
+                    "높을수록 흐름 자국이 짧게 끊김.\n"
+                    "0 = 끊기지 않고 계속 흐름, 1 = 한 칸만 이동 후 정착.\n"
+                    "권장: 0.0~0.2"))
+            )]
             // ── 초기 재질값 (논문 §4 stain-bleeding) ─────────────────────────
             + SVerticalBox::Slot().AutoHeight().Padding(0, 3, 0, 0)
             [

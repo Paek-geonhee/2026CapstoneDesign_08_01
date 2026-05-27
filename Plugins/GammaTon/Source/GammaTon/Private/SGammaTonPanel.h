@@ -117,6 +117,8 @@ private:
     void   SetStatus(const FString& Msg);
 
     TSharedRef<SWidget> MakeSrcFloatBox(float& Val);
+    TSharedRef<SWidget> MakeDirFloatBox(float& Val);
+    TSharedRef<SWidget> MakePosEntryBox(float& Val);
     TSharedRef<SWidget> MakeUnitBox(float& Val);
     static TSharedRef<SWidget> MakeRow(const FString& Label, TSharedRef<SWidget> Control);
     static TSharedRef<SWidget> MakeFloatBox(float& Val);

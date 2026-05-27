@@ -1,14 +1,23 @@
 #include "GammaTon.h"
 #include "SGammaTonPanel.h"
 #include "ToolMenus.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Widgets/SWindow.h"
+#include "Framework/Docking/TabManager.h"
+#include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "GammaTon"
 
 IMPLEMENT_MODULE(FGammaTonModule, GammaTon)
 
+const FName FGammaTonModule::TabId("GammaTonTab");
+
 void FGammaTonModule::StartupModule() {
+    FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
+        TabId,
+        FOnSpawnTab::CreateRaw(this, &FGammaTonModule::SpawnTab))
+        .SetDisplayName(LOCTEXT("TabTitle", "GammaTon"))
+        .SetTooltipText(LOCTEXT("TabTooltip", "Simulate dust / weathering on selected actors (γ-ton, SIGGRAPH 2005)"))
+        .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+
     UToolMenus::RegisterStartupCallback(
         FSimpleMulticastDelegate::FDelegate::CreateRaw(
             this, &FGammaTonModule::RegisterMenus));
@@ -17,6 +26,7 @@ void FGammaTonModule::StartupModule() {
 void FGammaTonModule::ShutdownModule() {
     UToolMenus::UnRegisterStartupCallback(this);
     UToolMenus::Get()->UnregisterOwner(this);
+    FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(TabId);
 }
 
 void FGammaTonModule::RegisterMenus() {
@@ -29,21 +39,20 @@ void FGammaTonModule::RegisterMenus() {
         "OpenGammaTon",
         LOCTEXT("OpenGammaTon",        "GammaTon Dust Simulator"),
         LOCTEXT("OpenGammaTonTooltip", "Simulate dust / weathering on selected actors (γ-ton, SIGGRAPH 2005)"),
-        FSlateIcon(),
+        FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"),
         FUIAction(FExecuteAction::CreateRaw(this, &FGammaTonModule::OpenPanel)));
 }
 
 void FGammaTonModule::OpenPanel() {
-    TSharedRef<SWindow> Window = SNew(SWindow)
-        .Title(LOCTEXT("WindowTitle", "GammaTon Dust Simulator"))
-        .ClientSize(FVector2D(460, 700))
-        .SizingRule(ESizingRule::FixedSize)
-        .SupportsMaximize(false)
-        .SupportsMinimize(false)
+    FGlobalTabmanager::Get()->TryInvokeTab(TabId);
+}
+
+TSharedRef<SDockTab> FGammaTonModule::SpawnTab(const FSpawnTabArgs& Args) {
+    return SNew(SDockTab)
+        .TabRole(ETabRole::NomadTab)
         [
             SNew(SGammaTonPanel)
         ];
-    FSlateApplication::Get().AddWindow(Window);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -40,3 +40,5 @@ Content/GammaTon/
 Thumbs.db
 desktop.ini
 .claude
+.gitattributes
+.vsconfig

@@ -31,6 +31,7 @@ public class GammaTon : ModuleRules
 			"Slate", "SlateCore",
 			"InputCore",
 			"EditorFramework", "UnrealEd",
+			"AppFramework",
 			"ToolMenus",
 			"StaticMeshDescription",
 			"MeshDescription",

@@ -8,7 +8,10 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
+	static const FName TabId;
+
 private:
 	void RegisterMenus();
 	void OpenPanel();
+	TSharedRef<class SDockTab> SpawnTab(const class FSpawnTabArgs& Args);
 };
