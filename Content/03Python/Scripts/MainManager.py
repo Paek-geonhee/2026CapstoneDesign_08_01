@@ -6,16 +6,27 @@ import unreal
 
 # 연산용 모듈 (언리얼과 무관한 로직들)
 from AppearanceManifold.Modules.geodesic_backend import compute_geodesic_distance_matrix
-from AppearanceManifold.Modules.Utility import load_and_downsample, combine_to_7d, normalize_features
+from AppearanceManifold.Modules.Utility import combine_to_7d_tensor, load_and_downsample, combine_to_7d, normalize_features
 from AppearanceManifold.Modules.Trajectory import build_weathering_trajectory, resample_trajectory
 from AppearanceManifold.Modules.KNN import Get_KNN_Graph_Adaptive
 from AppearanceManifold.Modules.MDS import Get_MDS_graph
+
+from AppearanceManifold.Modules.Reconstuctor import build_weathering_interpolation_path, export_texture_set
 
 class WeatheringPipeline:
     # 저장 경로를 OS 표준으로 설정 (언리얼 API 호출 없음)
     _SAVE_PATH = os.path.join(unreal.Paths.project_saved_dir(), "WeatheringResults", "trajectory.npy")
     _callback_registered = False
     _callback_handle = None
+
+    # --------------------------------------------------------
+    # Runtime manifold cache
+    # --------------------------------------------------------
+
+    _cached_trajectory = None
+    _cached_path = None
+    _cached_samples_7d = None
+    _cached_embedded = None
 
     @staticmethod
     def start_weathering(tex_paths):
@@ -32,6 +43,85 @@ class WeatheringPipeline:
             WeatheringPipeline._callback_handle = unreal.register_slate_pre_tick_callback(WeatheringPipeline._check_status)
             WeatheringPipeline._callback_registered = True
         return "Pipeline Started"
+    
+
+    @staticmethod
+    def run_interpolation(
+        texA_paths,
+        texB_paths,
+        alpha,
+        output_dir
+    ):
+        """
+        texA_paths :
+            [BaseColor, Specular, Roughness]
+
+        texB_paths :
+            [BaseColor, Specular, Roughness]
+        """
+
+        try:
+
+            # ----------------------------------------------------
+            # Validate manifold cache
+            # ----------------------------------------------------
+
+            if (
+                WeatheringPipeline._cached_path is None or
+                WeatheringPipeline._cached_samples_7d is None
+            ):
+                print(
+                    "❌ No cached trajectory data. "
+                    "Run start_weathering() first."
+                )
+                return False
+
+            # ----------------------------------------------------
+            # Load Texture A
+            # ----------------------------------------------------
+
+            D1, S1, R1 = load_and_downsample(texA_paths[0],texA_paths[1],texA_paths[2],128)
+
+            TexA_7d = combine_to_7d_tensor(D1,S1,R1)
+
+            # ----------------------------------------------------
+            # Load Texture B
+            # ----------------------------------------------------
+
+            D2, S2, R2 = load_and_downsample(texB_paths[0],texB_paths[1],texB_paths[2],128)
+
+            TexB_7d = combine_to_7d_tensor(D2,S2,R2)
+
+            # ----------------------------------------------------
+            # Interpolation
+            # ----------------------------------------------------
+
+            result = build_weathering_interpolation_path(TexA_7d,TexB_7d,WeatheringPipeline._cached_samples_7d,WeatheringPipeline._cached_path,alpha)
+
+            # ----------------------------------------------------
+            # Export
+            # ----------------------------------------------------
+
+            output_prefix = os.path.join(output_dir, "interpolation")
+
+            export_texture_set(result, output_prefix)
+
+            print("✅ Weathering interpolation complete.")
+
+            return True
+
+        except Exception as e:
+
+            import traceback
+
+            print(
+                f"❌ Interpolation Error:\\n"
+                f"{traceback.format_exc()}"
+            )
+
+        return False
+
+
 
     @staticmethod
     def _worker(tex_paths):
@@ -44,8 +134,13 @@ class WeatheringPipeline:
             src, dst, wei, wea = Get_KNN_Graph_Adaptive(X)
             MDS_Dist = Get_MDS_graph(compute_geodesic_distance_matrix(src, dst, wei, X.shape[0]), 3)
             
-            points, _ = build_weathering_trajectory(MDS_Dist, src, dst, wei, np.argmin(wea), np.argmax(wea))
+            points, path = build_weathering_trajectory(MDS_Dist, src, dst, wei, np.argmin(wea), np.argmax(wea))
             trajectory = resample_trajectory(points, 256)
+
+            WeatheringPipeline._cached_trajectory = trajectory
+            WeatheringPipeline._cached_path = path
+            WeatheringPipeline._cached_samples_7d = X
+            WeatheringPipeline._cached_embedded = MDS_Dist
 
             # 저장 전에 디렉토리 경로 확인 로그
             save_dir = os.path.dirname(WeatheringPipeline._SAVE_PATH)

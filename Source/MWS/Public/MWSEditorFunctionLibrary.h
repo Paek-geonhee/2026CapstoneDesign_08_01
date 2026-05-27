@@ -35,6 +35,17 @@ public:
         const FString& WorkingDirectory
     );
 
+    UFUNCTION(BlueprintCallable, Category = "MWS|Pipeline")
+    static TArray<UTexture2D*> RunWeatheringInterpolation(
+        UTexture2D* BaseColorA,
+        UTexture2D* SpecularA,
+        UTexture2D* RoughnessA, 
+        UTexture2D* BaseColorB,
+        UTexture2D* SpecularB,
+        UTexture2D* RoughnessB, 
+        float alpha,
+        const FString& WorkingDirectory);
+
     UFUNCTION(BlueprintCallable, Category = "MWS|Texture")
     static UTexture2D* ImportTextureFromFile(
         const FString& FilePath

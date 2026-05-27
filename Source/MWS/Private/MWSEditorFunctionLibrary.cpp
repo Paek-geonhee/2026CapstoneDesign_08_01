@@ -111,6 +111,85 @@ bool UMWSEditorFunctionLibrary::RunWeatheringPipeline(
     return ExecutePythonCommand(PythonCommand);
 }
 
+TArray<UTexture2D*> UMWSEditorFunctionLibrary::RunWeatheringInterpolation(UTexture2D* BaseColorA, UTexture2D* SpecularA, UTexture2D* RoughnessA, UTexture2D* BaseColorB, UTexture2D* SpecularB, UTexture2D* RoughnessB, float alpha, const FString& WorkingDirectory)
+{
+    TArray<UTexture2D*> Result;
+    if (!BaseColorA || !SpecularA || !RoughnessA || !BaseColorB || !SpecularB || !RoughnessB)
+    {
+        return Result;
+    }
+
+    const FString BaseColorAPath =
+        WorkingDirectory / TEXT("BaseColorA.png");
+
+    const FString SpecularAPath =
+        WorkingDirectory / TEXT("SpecularA.png");
+
+    const FString RoughnessAPath =
+        WorkingDirectory / TEXT("RoughnessA.png");
+
+    const bool bBaseExportA =
+        ExportTextureToPNG(BaseColorA, BaseColorAPath);
+
+    const bool bSpecExportA =
+        ExportTextureToPNG(SpecularA, SpecularAPath);
+
+    const bool bRoughExportA =
+        ExportTextureToPNG(RoughnessA, RoughnessAPath);
+
+    if (!bBaseExportA || !bSpecExportA || !bRoughExportA)
+    {
+        return Result;
+    }
+
+    const FString BaseColorBPath =
+        WorkingDirectory / TEXT("BaseColorB.png");
+
+    const FString SpecularBPath =
+        WorkingDirectory / TEXT("SpecularB.png");
+
+    const FString RoughnessBPath =
+        WorkingDirectory / TEXT("RoughnessB.png");
+
+    const bool bBaseExportB =
+        ExportTextureToPNG(BaseColorB, BaseColorBPath);
+
+    const bool bSpecExportB =
+        ExportTextureToPNG(SpecularB, SpecularBPath);
+
+    const bool bRoughExportB =
+        ExportTextureToPNG(RoughnessB, RoughnessBPath);
+
+    if (!bBaseExportB || !bSpecExportB || !bRoughExportB)
+    {
+        return Result;
+    }
+
+    FString PythonCommand = FString::Printf(
+        TEXT("import MainManager; ")
+        TEXT("MainManager.WeatheringPipeline.run_interpolation(")
+        TEXT("[r'%s', r'%s', r'%s'], ")
+        TEXT("[r'%s', r'%s', r'%s'], ")
+        TEXT("%f, ")
+        TEXT("r'%s')"),
+
+        *BaseColorAPath,
+        *SpecularAPath,
+        *RoughnessAPath,
+
+        *BaseColorBPath,
+        *SpecularBPath,
+        *RoughnessBPath,
+
+        alpha,
+
+        *WorkingDirectory
+    );
+
+    return Result;
+}
+
+
 UTexture2D* UMWSEditorFunctionLibrary::ImportTextureFromFile(
     const FString& FilePath)
 {

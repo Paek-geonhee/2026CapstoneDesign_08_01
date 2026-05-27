@@ -52,6 +52,7 @@ Plugins/**/Binaries/*
 
 # Builds
 Build/*
+build/CMakeFiles/*
 
 # Whitelist PakBlacklist-<BuildConfiguration>.txt files
 !Build/*/
@@ -74,11 +75,15 @@ Plugins/**/Intermediate/*
 # Cache files for the editor to use
 DerivedDataCache/*
 
-
+# Log files
+*.log
+*.tlog
+Saved/Logs/*
 
 # Python
 __pycache__/
 *.pyc
+*.ipynb
 
 # Virtual Environment
 .venv/
