@@ -37,7 +37,8 @@ public class GammaTon : ModuleRules
 			"MeshDescription",
 			"AssetRegistry",
 			"AssetTools",
-			"PropertyEditor"
+			"PropertyEditor",
+			"ImageWrapper"
 		});
 	}
 }

@@ -1,5 +1,9 @@
 #include "GammaTonTextureBridge.h"
 #include "Engine/Texture2D.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Misc/FileHelper.h"
+#include "HAL/PlatformFileManager.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/Actor.h"
 #include "Materials/Material.h"
@@ -426,4 +430,203 @@ void FGammaTonTextureBridge::ApplyToComponent(
     Comp->SetMaterial(0, MID);
 
     UE_LOG(LogTemp, Log, TEXT("[GammaTon] Applied aging to %s"), *ActorName);
+}
+
+// ── ExportManifoldPNGs helpers ────────────────────────────────────────────────
+
+// Find a texture in a material by keyword list (same strategy as FindBaseColorTex).
+static UTexture2D* sManifoldFindTex(UMaterialInterface* Mat,
+                                    std::initializer_list<const TCHAR*> Keywords)
+{
+    if (!Mat) return nullptr;
+    UMaterial* Base = nullptr;
+    if (auto* M  = Cast<UMaterial>(Mat))            Base = M;
+    else if (auto* MI = Cast<UMaterialInstance>(Mat)) Base = MI->GetMaterial();
+
+    auto Matches = [&](const FString& Name) {
+        for (const TCHAR* Kw : Keywords)
+            if (Name.Contains(Kw, ESearchCase::IgnoreCase)) return true;
+        return false;
+    };
+
+    // Pass 1 — texture parameter API
+    {
+        TArray<FMaterialParameterInfo> Infos; TArray<FGuid> Guids;
+        Mat->GetAllTextureParameterInfo(Infos, Guids);
+        for (auto& P : Infos)
+            if (Matches(P.Name.ToString())) {
+                UTexture* T = nullptr;
+                if (Mat->GetTextureParameterValue(P, T))
+                    if (auto* T2D = Cast<UTexture2D>(T)) return T2D;
+            }
+    }
+    // Pass 2 — expression collection
+    if (Base)
+        for (UMaterialExpression* Expr : Base->GetExpressionCollection().Expressions)
+            if (auto* P = Cast<UMaterialExpressionTextureSampleParameter2D>(Expr))
+                if (Matches(P->ParameterName.ToString()))
+                    if (auto* T2D = Cast<UTexture2D>(P->Texture)) return T2D;
+
+    return nullptr;
+}
+
+// Lock a BGRA8 texture source and return a raw read pointer.
+// Caller must call UnlockMip(0) after use. Returns nullptr on failure.
+static const uint8* sLockBGRA8(UTexture2D* Tex, int& OutW, int& OutH)
+{
+    if (!Tex || !Tex->Source.IsValid()) return nullptr;
+    if (Tex->Source.GetFormat() != TSF_BGRA8) return nullptr;
+    OutW = Tex->Source.GetSizeX();
+    OutH = Tex->Source.GetSizeY();
+    return Tex->Source.LockMip(0);
+}
+
+// Sample a locked BGRA8 buffer at normalized UV (wraps, nearest-neighbor).
+static FLinearColor sSampleBGRA8(const uint8* Data, int TW, int TH, float u, float v)
+{
+    u -= FMath::Floor(u);
+    v -= FMath::Floor(v);
+    int px = FMath::Clamp((int)(u * TW), 0, TW - 1);
+    int py = FMath::Clamp((int)(v * TH), 0, TH - 1);
+    int bi = (py * TW + px) * 4;
+    return FLinearColor(Data[bi+2]/255.f, Data[bi+1]/255.f, Data[bi+0]/255.f, 1.f);
+}
+
+static float sLuminance(FLinearColor C) { return C.R*0.299f + C.G*0.587f + C.B*0.114f; }
+
+// ── ExportManifoldPNGs ────────────────────────────────────────────────────────
+//
+// Composites original PBR textures with GammaTon AgingTex and saves 3 PNGs:
+//   BaseColor = Lerp(Lerp(Orig, DustColor, sd), PigmentColor, sp) × (1-sh×wet)
+//   Specular  = OrigSpecular × (1 - sd×0.3 - sp×0.2)
+//   Roughness = OrigRoughness + sr × RoughnessScale
+//
+// Original textures are sampled at the same normalized pixel position as the
+// AgingTex pixel. Both textures are downsampled to 128×128 by Manifold so
+// minor UV-space mismatch is acceptable.
+
+FString FGammaTonTextureBridge::ExportManifoldPNGs(
+    const GTObjTexture&   SimTex,
+    UStaticMeshComponent* Comp,
+    const FString&        ActorName,
+    FLinearColor          DustColor,
+    FLinearColor          PigmentColor,
+    float                 DustVisibility,
+    float                 WetnessScale,
+    float                 RoughnessScale)
+{
+    const int W = SimTex.width;
+    const int H = SimTex.height;
+    const int N = W * H;
+
+    IImageWrapperModule* IWM = FModuleManager::LoadModulePtr<IImageWrapperModule>("ImageWrapper");
+    if (!IWM)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GammaTon] ImageWrapper module not found — Manifold PNG export skipped."));
+        return FString();
+    }
+
+    // ── Prepare output directory ──────────────────────────────────────────────
+    FString Safe    = ActorName.Replace(TEXT(" "), TEXT("_"));
+    FString SaveDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GammaTon"), TEXT("Manifold"));
+    IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+    if (!PF.DirectoryExists(*SaveDir)) PF.CreateDirectoryTree(*SaveDir);
+
+    auto WritePNG = [&](const TArray<uint8>& Pixels, ERGBFormat Fmt, const FString& Suffix)
+    {
+        TSharedPtr<IImageWrapper> Wrapper = IWM->CreateImageWrapper(EImageFormat::PNG);
+        if (!Wrapper.IsValid()) return;
+        Wrapper->SetRaw(Pixels.GetData(), Pixels.Num(), W, H, Fmt, 8);
+        const TArray64<uint8>& Compressed = Wrapper->GetCompressed();
+        TArray<uint8> FileData;
+        FileData.Append(Compressed.GetData(), (int32)Compressed.Num());
+        FFileHelper::SaveArrayToFile(FileData, *FPaths::Combine(SaveDir, Safe + Suffix));
+    };
+
+    // ── Resolve original PBR textures from the component's material ───────────
+    UMaterialInterface* MatIface = Comp ? Comp->GetMaterial(0) : nullptr;
+
+    UTexture2D* OrigBC   = sManifoldFindTex(MatIface,
+        { TEXT("BaseColor"), TEXT("Base_Color"), TEXT("Albedo"), TEXT("Diffuse"), TEXT("Color") });
+    UTexture2D* OrigSpec = sManifoldFindTex(MatIface,
+        { TEXT("Specular"), TEXT("Spec"), TEXT("Metallic"), TEXT("Metal") });
+    UTexture2D* OrigRough= sManifoldFindTex(MatIface,
+        { TEXT("Roughness"), TEXT("Rough"), TEXT("Gloss") });
+
+    // Lock source data (read-only) — nullptr if texture missing or non-BGRA8
+    int BCW=0, BCH=0, SpW=0, SpH=0, RoW=0, RoH=0;
+    const uint8* BCData   = sLockBGRA8(OrigBC,    BCW, BCH);
+    const uint8* SpData   = sLockBGRA8(OrigSpec,  SpW, SpH);
+    const uint8* RoData   = sLockBGRA8(OrigRough, RoW, RoH);
+
+    // Fallback colors when original textures are unavailable
+    const FLinearColor FallbackBC  (0.75f, 0.75f, 0.75f);  // light gray
+    const float        FallbackSpec = 0.5f;
+    const float        FallbackRo   = 0.3f;
+
+    // ── BaseColor (RGBA, 4 bpp) ───────────────────────────────────────────────
+    {
+        TArray<uint8> Pixels;
+        Pixels.SetNumUninitialized(N * 4);
+        for (int i = 0; i < N; i++)
+        {
+            float u  = (i % W + 0.5f) / W;
+            float v  = (i / W + 0.5f) / H;
+            float sd = FMath::Clamp(SimTex.sd[i], 0.f, 1.f);
+            float sp = FMath::Clamp(SimTex.sp[i], 0.f, 1.f);
+            float sh = FMath::Clamp(SimTex.sh[i], 0.f, 1.f);
+
+            FLinearColor Orig = BCData ? sSampleBGRA8(BCData, BCW, BCH, u, v) : FallbackBC;
+            FLinearColor C    = FMath::Lerp(Orig, DustColor,    sd * DustVisibility);
+            C                 = FMath::Lerp(C,    PigmentColor, sp * DustVisibility);
+            C                 = C * (1.0f - sh * WetnessScale);
+
+            Pixels[i*4+0] = (uint8)(FMath::Clamp(C.R, 0.f, 1.f) * 255.f);
+            Pixels[i*4+1] = (uint8)(FMath::Clamp(C.G, 0.f, 1.f) * 255.f);
+            Pixels[i*4+2] = (uint8)(FMath::Clamp(C.B, 0.f, 1.f) * 255.f);
+            Pixels[i*4+3] = 255;
+        }
+        WritePNG(Pixels, ERGBFormat::RGBA, TEXT("_basecolor.png"));
+    }
+
+    // ── Specular (RGBA, 4 bpp) ────────────────────────────────────────────────
+    {
+        TArray<uint8> Pixels;
+        Pixels.SetNumUninitialized(N * 4);
+        for (int i = 0; i < N; i++)
+        {
+            float u    = (i % W + 0.5f) / W;
+            float v    = (i / W + 0.5f) / H;
+            float sd   = FMath::Clamp(SimTex.sd[i], 0.f, 1.f);
+            float sp   = FMath::Clamp(SimTex.sp[i], 0.f, 1.f);
+            float orig = SpData ? sLuminance(sSampleBGRA8(SpData, SpW, SpH, u, v)) : FallbackSpec;
+            float spec = FMath::Clamp(orig - sd * 0.3f - sp * 0.2f, 0.f, 1.f);
+            uint8 B    = (uint8)(spec * 255.f);
+            Pixels[i*4+0] = B; Pixels[i*4+1] = B; Pixels[i*4+2] = B; Pixels[i*4+3] = 255;
+        }
+        WritePNG(Pixels, ERGBFormat::RGBA, TEXT("_specular.png"));
+    }
+
+    // ── Roughness (grayscale, 1 bpp) ──────────────────────────────────────────
+    {
+        TArray<uint8> Pixels;
+        Pixels.SetNumUninitialized(N);
+        for (int i = 0; i < N; i++)
+        {
+            float u    = (i % W + 0.5f) / W;
+            float v    = (i / W + 0.5f) / H;
+            float orig = RoData ? sLuminance(sSampleBGRA8(RoData, RoW, RoH, u, v)) : FallbackRo;
+            float val  = FMath::Clamp(orig + SimTex.sr[i] * RoughnessScale, 0.f, 1.f);
+            Pixels[i]  = (uint8)(val * 255.f);
+        }
+        WritePNG(Pixels, ERGBFormat::Gray, TEXT("_roughness.png"));
+    }
+
+    // Unlock source data
+    if (BCData   && OrigBC)    OrigBC->Source.UnlockMip(0);
+    if (SpData   && OrigSpec)  OrigSpec->Source.UnlockMip(0);
+    if (RoData   && OrigRough) OrigRough->Source.UnlockMip(0);
+
+    UE_LOG(LogTemp, Log, TEXT("[GammaTon] Manifold PNGs saved → %s"), *SaveDir);
+    return SaveDir;
 }

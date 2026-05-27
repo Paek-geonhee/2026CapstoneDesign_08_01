@@ -1307,6 +1307,7 @@ FReply SGammaTonPanel::OnRunClicked()
 
     // Save textures and apply materials
     int Applied = 0;
+    FString ManifoldExportDir;
     for (int i = 0; i < (int)Scene.textures.size(); i++) {
         FString Name = Scene.actorNames[i];
         UTexture2D* Tex = FGammaTonTextureBridge::CreateAndSaveTexture(Scene.textures[i], Name);
@@ -1318,6 +1319,12 @@ FReply SGammaTonPanel::OnRunClicked()
                 DustTexture_, PigmentTexture_, DustVisibility_);
             Applied++;
         }
+        // Export BaseColor / Specular / Roughness PNGs for Manifold
+        FString Dir = FGammaTonTextureBridge::ExportManifoldPNGs(
+            Scene.textures[i], Scene.components[i], Name,
+            ScenarioDustColor, ScenarioPigmentColor,
+            DustVisibility_);
+        if (!Dir.IsEmpty()) ManifoldExportDir = Dir;
     }
 
     // ── Build & save simulation log ───────────────────────────────────────
@@ -1415,11 +1422,14 @@ FReply SGammaTonPanel::OnRunClicked()
         TEXT("Done!  %d/%d iters | Settled: %d | Escaped: %d | Avg bounces: %.2f\n"
              "reflect=%d  bounce=%d  flow=%d  settle=%d\n"
              "Textures saved to /Game/GammaTon/ (%d actors).\n"
+             "Manifold PNGs: %s\n"
              "Log: %s"),
         PerIterStats.Num(), NumIterations,
         Total.settled, Total.escaped, Total.avgBounces(),
         Total.ev_reflect, Total.ev_bounce, Total.ev_flow, Total.ev_settle,
-        Applied, *LogFilePath));
+        Applied,
+        ManifoldExportDir.IsEmpty() ? TEXT("(export failed)") : *ManifoldExportDir,
+        *LogFilePath));
 
     return FReply::Handled();
 }
