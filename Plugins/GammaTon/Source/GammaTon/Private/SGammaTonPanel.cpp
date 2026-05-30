@@ -678,6 +678,122 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 )
             ]
 
+            // ── Post-process: 집중화 / 대비 강화 ─────────────────────────────
+            + SScrollBox::Slot().Padding(8, 8, 8, 2)
+            [ SNew(STextBlock).Text(LOCTEXT("PPHdr", "── Post-Process (clustering) ────────────────")) ]
+
+            // [D] Probabilistic deposit
+            + SScrollBox::Slot().Padding(12, 2)
+            [ MakeRow(TEXT("Deposit Rate"),
+                SNew(SSpinBox<float>).MinValue(0.01f).MaxValue(1.f).Delta(0.01f)
+                .Value_Lambda([this]() { return PostProcessConfig_.probabilistic_deposit; })
+                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.probabilistic_deposit = v; })
+                .ToolTipText(LOCTEXT("TipDepRate",
+                    "침착 확률 [0.01, 1.0].\n"
+                    "1.0 = 모든 ton이 deposit (기본).\n"
+                    "0.3 = ton의 30%만 deposit → 산발적·불균일한 패치 생성."))
+            )]
+
+            // [B] Threshold + Sigmoid
+            + SScrollBox::Slot().Padding(12, 4, 12, 0)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                [
+                    SNew(SCheckBox)
+                    .IsChecked_Lambda([this]() {
+                        return PostProcessConfig_.useThreshold ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                    })
+                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) {
+                        PostProcessConfig_.useThreshold = (s == ECheckBoxState::Checked);
+                    })
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(4, 0, 0, 0)
+                [
+                    SNew(STextBlock)
+                    .Text(LOCTEXT("ThreshLabel", "Threshold + Sigmoid (contrast)"))
+                    .ToolTipText(LOCTEXT("TipThresh",
+                        "threshold 이하 값을 0으로 제거하고, 이상은 sigmoid로 대비 강화.\n"
+                        "깨끗한 영역 / 더러운 영역의 경계를 선명하게 만듦."))
+                ]
+            ]
+            + SScrollBox::Slot().Padding(24, 2)
+            [ MakeRow(TEXT("  Threshold"),
+                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(0.9f).Delta(0.01f)
+                .Value_Lambda([this]() { return PostProcessConfig_.threshold; })
+                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.threshold = v; })
+                .ToolTipText(LOCTEXT("TipThreshVal",
+                    "이 값 이하의 deposit은 0으로 처리.\n"
+                    "높을수록 더 많은 영역이 깨끗하게 남음."))
+            )]
+            + SScrollBox::Slot().Padding(24, 2)
+            [ MakeRow(TEXT("  Steepness"),
+                SNew(SSpinBox<float>).MinValue(1.f).MaxValue(50.f).Delta(0.5f)
+                .Value_Lambda([this]() { return PostProcessConfig_.sigmoid_steepness; })
+                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.sigmoid_steepness = v; })
+                .ToolTipText(LOCTEXT("TipSteepness",
+                    "sigmoid 경사도. 높을수록 경계가 더 날카로움."))
+            )]
+
+            // [A] Fractal Noise Mask
+            + SScrollBox::Slot().Padding(12, 4, 12, 0)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                [
+                    SNew(SCheckBox)
+                    .IsChecked_Lambda([this]() {
+                        return PostProcessConfig_.useNoiseMask ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                    })
+                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) {
+                        PostProcessConfig_.useNoiseMask = (s == ECheckBoxState::Checked);
+                    })
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(4, 0, 0, 0)
+                [
+                    SNew(STextBlock)
+                    .Text(LOCTEXT("NoiseMaskLabel", "Fractal Noise Mask (organic patches)"))
+                    .ToolTipText(LOCTEXT("TipNoiseMask",
+                        "프랙탈 노이즈로 유기적인 더러운/깨끗한 패치 생성.\n"
+                        "Voronoi와 달리 다각형 경계 없이 부드럽게 나뉨.\n"
+                        "Scale이 작을수록 큰 패치, 클수록 잘게 나뉨."))
+                ]
+            ]
+            + SScrollBox::Slot().Padding(24, 2)
+            [ MakeRow(TEXT("  Scale"),
+                SNew(SSpinBox<float>).MinValue(0.5f).MaxValue(64.f).Delta(0.5f)
+                .Value_Lambda([this]() { return PostProcessConfig_.noise_scale; })
+                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.noise_scale = v; })
+                .ToolTipText(LOCTEXT("TipNoiseScale",
+                    "패치 주파수.\n"
+                    "2 = 매우 큰 blob / 4 = 중간(기본) / 16+ = 잘게 나뉜 패치"))
+            )]
+            + SScrollBox::Slot().Padding(24, 2)
+            [ MakeRow(TEXT("  Octaves"),
+                SNew(SSpinBox<int32>).MinValue(1).MaxValue(8)
+                .Value_Lambda([this]() { return PostProcessConfig_.noise_octaves; })
+                .OnValueChanged_Lambda([this](int32 v) { PostProcessConfig_.noise_octaves = v; })
+                .ToolTipText(LOCTEXT("TipNoiseOct",
+                    "프랙탈 옥타브 수. 높을수록 디테일 증가.\n"
+                    "2 = 크고 부드러운 blob / 4 = 기본 / 6 = 세밀한 질감"))
+            )]
+            + SScrollBox::Slot().Padding(24, 2)
+            [ MakeRow(TEXT("  Strength"),
+                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                .Value_Lambda([this]() { return PostProcessConfig_.noise_strength; })
+                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.noise_strength = v; })
+                .ToolTipText(LOCTEXT("TipNoiseStrength",
+                    "패치 간 최대 억제 강도.\n"
+                    "0.5 = 절반까지 억제 / 1.0 = 일부 영역 완전 억제"))
+            )]
+            + SScrollBox::Slot().Padding(24, 2)
+            [ MakeRow(TEXT("  Seed"),
+                SNew(SSpinBox<int32>).MinValue(0).MaxValue(999999)
+                .Value_Lambda([this]() { return (int32)PostProcessConfig_.noise_seed; })
+                .OnValueChanged_Lambda([this](int32 v) { PostProcessConfig_.noise_seed = (uint32_t)v; })
+                .ToolTipText(LOCTEXT("TipNoiseSeed", "노이즈 패턴 랜덤 시드."))
+            )]
+
             // ── Run ───────────────────────────────────────────────────────────
             + SScrollBox::Slot().Padding(8, 14, 8, 4)
             [
@@ -1251,12 +1367,13 @@ FReply SGammaTonPanel::OnRunClicked()
 
     // Build config
     GTSimConfig Config;
-    Config.n_tons_per_iter  = NTonsPerIter;
-    Config.max_bounces      = MaxBounces;
-    Config.flow_step        = FlowStep;
-    Config.deposit_k        = DepositK;
-    Config.bounce_distance  = BounceDistance;
-    Config.parabola_gravity = ParabolaGravity;
+    Config.n_tons_per_iter       = NTonsPerIter;
+    Config.max_bounces           = MaxBounces;
+    Config.flow_step             = FlowStep;
+    Config.deposit_k             = DepositK;
+    Config.bounce_distance       = BounceDistance;
+    Config.parabola_gravity      = ParabolaGravity;
+    Config.probabilistic_deposit = PostProcessConfig_.probabilistic_deposit;
     Config.ton_types.clear();
     for (const auto& E : TonTypes_)
         Config.ton_types.push_back(EntryToTonType(*E));
@@ -1293,6 +1410,19 @@ FReply SGammaTonPanel::OnRunClicked()
     // Applied before saving so the texture is smooth without altering the deposit total.
     for (auto& Tex : Scene.textures)
         Tex.blur(2);
+
+    // Post-process: clustering and contrast enhancement (Task #3).
+    // Order: RD (cluster) → Threshold (contrast) → Voronoi (large-scale patches).
+    for (auto& Tex : Scene.textures) {
+        if (PostProcessConfig_.useThreshold)
+            Tex.applyThresholdSigmoid(PostProcessConfig_.threshold,
+                                      PostProcessConfig_.sigmoid_steepness);
+        if (PostProcessConfig_.useNoiseMask)
+            Tex.applyNoiseMask(PostProcessConfig_.noise_octaves,
+                               PostProcessConfig_.noise_seed,
+                               PostProcessConfig_.noise_strength,
+                               PostProcessConfig_.noise_scale);
+    }
 
     // Snapshot pre-simulation materials for one-level undo
     UndoSnapshot_.Empty();

@@ -104,6 +104,9 @@ private:
     TArray<TSharedPtr<FString>>              SourceOptions_;
     TArray<TSharedPtr<FString>>              ScenarioOptions_;
 
+    // ── Post-process config (clustering, threshold, Voronoi) ─────────────
+    GTPostProcessConfig PostProcessConfig_;
+
     // ── Undo snapshot (Run 직전 머티리얼 1단계 저장) ──────────────────────
     struct FUndoEntry {
         TWeakObjectPtr<UStaticMeshComponent> Component;
