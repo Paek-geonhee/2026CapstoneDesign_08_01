@@ -32,7 +32,8 @@ public:
         UTexture2D* BaseColor,
         UTexture2D* Specular,
         UTexture2D* Roughness,
-        const FString& WorkingDirectory
+        const FString& WorkingDirectory,
+        const FString& FileName
     );
 
     UFUNCTION(BlueprintCallable, Category = "MWS|Pipeline")

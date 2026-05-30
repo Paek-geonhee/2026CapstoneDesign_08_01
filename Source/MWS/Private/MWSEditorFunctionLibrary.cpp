@@ -67,7 +67,8 @@ bool UMWSEditorFunctionLibrary::RunWeatheringPipeline(
     UTexture2D* BaseColor,
     UTexture2D* Specular,
     UTexture2D* Roughness,
-    const FString& WorkingDirectory)
+    const FString& WorkingDirectory,
+    const FString& FileName)
 {
     if (!BaseColor || !Specular || !Roughness)
     {
@@ -102,10 +103,12 @@ bool UMWSEditorFunctionLibrary::RunWeatheringPipeline(
         TEXT("MainManager.WeatheringPipeline.start_weathering([")
         TEXT("r'%s', ")
         TEXT("r'%s', ")
-        TEXT("r'%s'])"),
+        TEXT("r'%s'], ")
+        TEXT("r'%s')"),
         *BaseColorPath,
         *SpecularPath,
-        *RoughnessPath
+        *RoughnessPath,
+        *FileName
     );
 
     return ExecutePythonCommand(PythonCommand);
@@ -200,14 +203,9 @@ UTexture2D* UMWSEditorFunctionLibrary::ImportTextureFromFile(
 
 FString UMWSEditorFunctionLibrary::GetAppearanceManifoldDirectory()
 {
-    const FString OutputDir =
-        FPaths::ProjectContentDir() /
-        TEXT("03Python/AppearanceManifold/");
+    FString Directory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("_WeatheringResults"));
 
-    IPlatformFile& PlatformFile =
-        FPlatformFileManager::Get().GetPlatformFile();
+    IFileManager::Get().MakeDirectory( *Directory, true);
 
-    PlatformFile.CreateDirectoryTree(*OutputDir);
-
-    return OutputDir;
+    return Directory;
 }

@@ -30,5 +30,8 @@
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
 		}
+	],
+	"AdditionalPluginDirectories": [
+		"Plugins"
 	]
 }

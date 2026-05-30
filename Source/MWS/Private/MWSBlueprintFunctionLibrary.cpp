@@ -9,6 +9,7 @@
 
 #include "ImageUtils.h"
 
+#include "Kismet/KismetSystemLibrary.h"
 #include "IImageWrapper.h"
 #include "Misc/FileHelper.h"
 #include "IImageWrapperModule.h"
@@ -19,6 +20,16 @@
 struct FWeatheringSample {
     float Data[7];
 };
+
+FString UMWSBlueprintFunctionLibrary::GetTrajectorySaveDirectory(const FString& FileName)
+{
+    
+    FString Directory = FPaths::Combine(FPaths::ProjectContentDir(),TEXT("_WeatheringResults"));
+
+    IFileManager::Get().MakeDirectory(*Directory, true);
+
+    return FPaths::Combine(Directory, FileName + TEXT(".bin"));
+}
 
 void UMWSBlueprintFunctionLibrary::LogWeatheringBinaryData(const FString& FilePath)
 {

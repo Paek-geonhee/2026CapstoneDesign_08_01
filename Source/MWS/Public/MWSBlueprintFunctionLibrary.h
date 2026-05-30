@@ -14,6 +14,9 @@ class MWS_API UMWSBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 public:
+    UFUNCTION(BlueprintPure, Category = "Weathering")
+    static FString GetTrajectorySaveDirectory(const FString& FileName);
+
     /** .bin 파일을 읽어 trajectory_samples 데이터를 로그로 출력 */
     UFUNCTION(BlueprintCallable, Category = "Weathering")
     static void LogWeatheringBinaryData(const FString& FilePath);

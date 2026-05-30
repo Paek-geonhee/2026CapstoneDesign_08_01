@@ -52,7 +52,7 @@ def export_to_unreal_runtime_data(trajectory_samples, filepath):
 
 class WeatheringPipeline:
     # 저장 경로를 OS 표준으로 설정 (언리얼 API 호출 없음)
-    _SAVE_PATH = os.path.join(unreal.Paths.project_saved_dir(), "WeatheringResults", "trajectory.npy")
+    _SAVE_PATH = os.path.join(unreal.Paths.project_content_dir(), "_WeatheringResults", ".npy")
     _callback_registered = False
     _callback_handle = None
 
@@ -66,13 +66,13 @@ class WeatheringPipeline:
     _cached_embedded = None
 
     @staticmethod
-    def start_weathering(tex_paths):
+    def start_weathering(tex_paths, file_name = "trajectory_runtime"):
         """파이프라인 시작 엔트리 포인트"""
         if os.path.exists(WeatheringPipeline._SAVE_PATH):
             os.remove(WeatheringPipeline._SAVE_PATH)
             
         # 1. 연산 스레드 시작
-        thread = threading.Thread(target=WeatheringPipeline._worker, args=(tex_paths,))
+        thread = threading.Thread(target=WeatheringPipeline._worker, args=(tex_paths,file_name,))
         thread.start()
         
         # 2. 메인 스레드 감시자 등록 시 핸들 저장
@@ -87,7 +87,8 @@ class WeatheringPipeline:
         texA_paths,
         texB_paths,
         alpha,
-        output_dir
+        output_dir,
+        file_name = "trajectory_runtime"
     ):
         """
         texA_paths :
@@ -161,7 +162,7 @@ class WeatheringPipeline:
 
 
     @staticmethod
-    def _worker(tex_paths):
+    def _worker(tex_paths, file_name):
         """[비동기 연산] 순수 데이터 연산만 수행"""
         try:
             print("🚀 [Worker] 연산 시작...")
@@ -186,7 +187,7 @@ class WeatheringPipeline:
             os.makedirs(save_dir, exist_ok=True)
             
             # 런타임용 바이너리 저장 (물리적 정보 포함)
-            runtime_bin_path = WeatheringPipeline._SAVE_PATH.replace(".npy", "_runtime.bin")
+            runtime_bin_path = WeatheringPipeline._SAVE_PATH.replace(".npy", file_name + ".bin")
             export_to_unreal_runtime_data(trajectory_samples, runtime_bin_path)
             
             print(f"✅ [Worker] 런타임 최적화 데이터 준비 완료.")
