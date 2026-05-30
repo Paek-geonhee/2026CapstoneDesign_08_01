@@ -2,6 +2,7 @@ import os
 import numpy as np
 import time
 import threading
+import struct
 import unreal
 
 # 연산용 모듈 (언리얼과 무관한 로직들)
@@ -11,7 +12,43 @@ from AppearanceManifold.Modules.Trajectory import build_weathering_trajectory, r
 from AppearanceManifold.Modules.KNN import Get_KNN_Graph_Adaptive
 from AppearanceManifold.Modules.MDS import Get_MDS_graph
 
-from AppearanceManifold.Modules.Reconstuctor import build_weathering_interpolation_path, export_texture_set
+from AppearanceManifold.Modules._Reconstructor import build_weathering_interpolation_path, export_texture_set
+
+
+def export_to_unreal_binary(trajectory, samples_7d, filepath):
+    """
+    언리얼 C++에서 FFileHelper::LoadFileToArray로 읽을 수 있는 바이너리 포맷
+    구조: [T(int32)] [N(int32)] [trajectory_data(float*3*T)] [samples_data(float*7*N)]
+    """
+    T = trajectory.shape[0]
+    N = samples_7d.shape[0]
+    
+    with open(filepath, "wb") as f:
+        # 1. 헤더: 데이터 개수 저장
+        f.write(struct.pack('ii', T, N))
+        # 2. 본문: trajectory (T,3) -> float32
+        f.write(trajectory.astype(np.float32).tobytes())
+        # 3. 본문: samples_7d (N,7) -> float32
+        f.write(samples_7d.astype(np.float32).tobytes())
+        
+    print(f"💾 [Exporter] 바이너리 파일 저장 완료: {filepath}")
+
+def export_to_unreal_runtime_data(trajectory_samples, filepath):
+    """
+    Trajectory의 실제 물리적 데이터(T, 7)를 바이너리로 저장합니다.
+    언리얼 C++은 이 파일만 로드하면 런타임 연산을 즉시 수행할 수 있습니다.
+        
+    구조: [T(int32)] [데이터(float * T * 7)]
+    """
+    T = trajectory_samples.shape[0]
+        
+    with open(filepath, "wb") as f:
+            # 1. 궤적의 길이(T) 저장
+        f.write(struct.pack('i', T))
+            # 2. 실제 물리적 샘플 데이터(T, 7) 저장
+        f.write(trajectory_samples.astype(np.float32).tobytes())
+            
+    print(f"💾 [Exporter] 런타임용 물리 데이터 저장 완료: {filepath} (Points: {T})")
 
 class WeatheringPipeline:
     # 저장 경로를 OS 표준으로 설정 (언리얼 API 호출 없음)
@@ -137,22 +174,22 @@ class WeatheringPipeline:
             points, path = build_weathering_trajectory(MDS_Dist, src, dst, wei, np.argmin(wea), np.argmax(wea))
             trajectory = resample_trajectory(points, 256)
 
+            trajectory_samples = X[path] 
+            
+            # 캐시 저장
             WeatheringPipeline._cached_trajectory = trajectory
             WeatheringPipeline._cached_path = path
             WeatheringPipeline._cached_samples_7d = X
-            WeatheringPipeline._cached_embedded = MDS_Dist
-
-            # 저장 전에 디렉토리 경로 확인 로그
+            
+            # 3. 최적화된 바이너리 저장
             save_dir = os.path.dirname(WeatheringPipeline._SAVE_PATH)
-            print(f"📂 [Worker] 저장 시도 경로: {save_dir}")
-            
             os.makedirs(save_dir, exist_ok=True)
-            np.save(WeatheringPipeline._SAVE_PATH, trajectory)
             
-            if os.path.exists(WeatheringPipeline._SAVE_PATH):
-                print("✅ [Worker] 연산 완료 및 파일 저장 완료.")
-            else:
-                print("❌ [Worker] 저장 시도했으나 파일이 존재하지 않음.")
+            # 런타임용 바이너리 저장 (물리적 정보 포함)
+            runtime_bin_path = WeatheringPipeline._SAVE_PATH.replace(".npy", "_runtime.bin")
+            export_to_unreal_runtime_data(trajectory_samples, runtime_bin_path)
+            
+            print(f"✅ [Worker] 런타임 최적화 데이터 준비 완료.")
                 
         except Exception as e:
             # 에러 전체 내용을 출력 (traceback 활용)

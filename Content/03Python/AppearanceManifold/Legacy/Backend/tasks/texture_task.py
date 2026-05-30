@@ -23,7 +23,7 @@ from Modules.Trajectory import (
     build_weathering_trajectory
 )
 
-from Modules.Reconstructor import (
+from AppearanceManifold.Modules._Reconstructor import (
     build_weathering_sequence_semantic
 )
 

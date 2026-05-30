@@ -8,7 +8,7 @@ public class MWS : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ImageWrapper", "RenderCore", "RHI" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput","ImageCore", "ImageWrapper", "RenderCore", "RHI" });
 
         PrivateDependencyModuleNames.AddRange(new string[]
             {
