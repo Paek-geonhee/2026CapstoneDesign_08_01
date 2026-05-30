@@ -1321,9 +1321,9 @@ FReply SGammaTonPanel::OnRunClicked()
         }
         // Export BaseColor / Specular / Roughness PNGs for Manifold
         FString Dir = FGammaTonTextureBridge::ExportManifoldPNGs(
-            Scene.textures[i], Scene.components[i], Name,
+            Scene.textures[i], Scene.meshes[i], Scene.components[i], Name,
             ScenarioDustColor, ScenarioPigmentColor,
-            DustVisibility_);
+            DustVisibility_, DustTexture_, PigmentTexture_);
         if (!Dir.IsEmpty()) ManifoldExportDir = Dir;
     }
 

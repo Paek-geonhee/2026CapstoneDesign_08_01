@@ -494,24 +494,44 @@ static FLinearColor sSampleBGRA8(const uint8* Data, int TW, int TH, float u, flo
 
 static float sLuminance(FLinearColor C) { return C.R*0.299f + C.G*0.587f + C.B*0.114f; }
 
+static FLinearColor sSampleBGRA8Bilinear(const uint8* Data, int TW, int TH, float u, float v)
+{
+    u -= FMath::Floor(u);
+    v -= FMath::Floor(v);
+    float fpx = u * TW - 0.5f, fpy = v * TH - 0.5f;
+    int x0 = FMath::Clamp((int)fpx,   0, TW-1);
+    int x1 = FMath::Clamp(x0 + 1,     0, TW-1);
+    int y0 = FMath::Clamp((int)fpy,   0, TH-1);
+    int y1 = FMath::Clamp(y0 + 1,     0, TH-1);
+    float tx = fpx - (float)x0, ty = fpy - (float)y0;
+    auto S = [&](int x, int y) -> FLinearColor {
+        int bi = (y * TW + x) * 4;
+        return FLinearColor(Data[bi+2]/255.f, Data[bi+1]/255.f, Data[bi+0]/255.f, 1.f);
+    };
+    return FMath::Lerp(FMath::Lerp(S(x0,y0), S(x1,y0), tx),
+                       FMath::Lerp(S(x0,y1), S(x1,y1), tx), ty);
+}
+
 // ── ExportManifoldPNGs ────────────────────────────────────────────────────────
 //
-// Composites original PBR textures with GammaTon AgingTex and saves 3 PNGs:
-//   BaseColor = Lerp(Lerp(Orig, DustColor, sd), PigmentColor, sp) × (1-sh×wet)
-//   Specular  = OrigSpecular × (1 - sd×0.3 - sp×0.2)
-//   Roughness = OrigRoughness + sr × RoughnessScale
+// For each atlas texel, rasterizes mesh triangles in UV1 space to compute the
+// UV0 coordinate via barycentric interpolation, then samples original PBR
+// textures at UV0 with bilinear filtering.
 //
-// Original textures are sampled at the same normalized pixel position as the
-// AgingTex pixel. Both textures are downsampled to 128×128 by Manifold so
-// minor UV-space mismatch is acceptable.
+//   BaseColor = Lerp(Lerp(Orig, DustColor, sd×vis), PigmentColor, sp×vis) × (1-sh×wet)
+//   Specular  = OrigSpecular - sd×0.3 - sp×0.2
+//   Roughness = OrigRoughness + sr × RoughnessScale
 
 FString FGammaTonTextureBridge::ExportManifoldPNGs(
     const GTObjTexture&   SimTex,
+    const GTMesh&         Mesh,
     UStaticMeshComponent* Comp,
     const FString&        ActorName,
     FLinearColor          DustColor,
     FLinearColor          PigmentColor,
     float                 DustVisibility,
+    UTexture2D*           DustTexture,
+    UTexture2D*           PigmentTexture,
     float                 WetnessScale,
     float                 RoughnessScale)
 {
@@ -526,7 +546,7 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
         return FString();
     }
 
-    // ── Prepare output directory ──────────────────────────────────────────────
+    // ── Output directory ──────────────────────────────────────────────────────
     FString Safe    = ActorName.Replace(TEXT(" "), TEXT("_"));
     FString SaveDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GammaTon"), TEXT("Manifold"));
     IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
@@ -543,7 +563,58 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
         FFileHelper::SaveArrayToFile(FileData, *FPaths::Combine(SaveDir, Safe + Suffix));
     };
 
-    // ── Resolve original PBR textures from the component's material ───────────
+    // ── Build Atlas UV1 → UV0 map (2×2 supersampling) ────────────────────────
+    // Each output texel gets 4 sub-pixel samples at offsets (+0.25/+0.75) in
+    // both axes. UV0 is computed per sub-sample via barycentric interpolation.
+    // UV0Map[i*4 + k] = k-th sub-sample of texel i  (k: 0=TL,1=TR,2=BL,3=BR)
+    struct FAtlasTexel { float u0 = 0.f, v0 = 0.f; bool valid = false; };
+    TArray<FAtlasTexel> UV0Map;
+    UV0Map.SetNumZeroed(N * 4);
+
+    static const float SubX[4] = { 0.25f, 0.75f, 0.25f, 0.75f };
+    static const float SubY[4] = { 0.25f, 0.25f, 0.75f, 0.75f };
+
+    for (const GTTriangle& Tri : Mesh.triangles)
+    {
+        const GTVertex& VA = Mesh.vertices[Tri.v0];
+        const GTVertex& VB = Mesh.vertices[Tri.v1];
+        const GTVertex& VC = Mesh.vertices[Tri.v2];
+
+        float ax = VA.atlas_uv.x * W, ay = VA.atlas_uv.y * H;
+        float bx = VB.atlas_uv.x * W, by = VB.atlas_uv.y * H;
+        float cx = VC.atlas_uv.x * W, cy = VC.atlas_uv.y * H;
+
+        float denom = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+        if (FMath::Abs(denom) < 1e-8f) continue;
+        float invD = 1.0f / denom;
+
+        int minX = FMath::Clamp((int)FMath::Min3(ax, bx, cx),     0, W-1);
+        int maxX = FMath::Clamp((int)FMath::Max3(ax, bx, cx) + 1, 0, W-1);
+        int minY = FMath::Clamp((int)FMath::Min3(ay, by, cy),     0, H-1);
+        int maxY = FMath::Clamp((int)FMath::Max3(ay, by, cy) + 1, 0, H-1);
+
+        for (int py = minY; py <= maxY; py++)
+        {
+            for (int px = minX; px <= maxX; px++)
+            {
+                int idx = py * W + px;
+                for (int k = 0; k < 4; k++)
+                {
+                    float spx = px + SubX[k], spy = py + SubY[k];
+                    float w0 = ((by - cy) * (spx - cx) + (cx - bx) * (spy - cy)) * invD;
+                    float w1 = ((cy - ay) * (spx - cx) + (ax - cx) * (spy - cy)) * invD;
+                    float w2 = 1.0f - w0 - w1;
+                    if (w0 < -1e-4f || w1 < -1e-4f || w2 < -1e-4f) continue;
+
+                    UV0Map[idx*4+k].u0    = w0 * VA.uv.x + w1 * VB.uv.x + w2 * VC.uv.x;
+                    UV0Map[idx*4+k].v0    = w0 * VA.uv.y + w1 * VB.uv.y + w2 * VC.uv.y;
+                    UV0Map[idx*4+k].valid = true;
+                }
+            }
+        }
+    }
+
+    // ── Resolve original PBR textures ─────────────────────────────────────────
     UMaterialInterface* MatIface = Comp ? Comp->GetMaterial(0) : nullptr;
 
     UTexture2D* OrigBC   = sManifoldFindTex(MatIface,
@@ -553,16 +624,38 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
     UTexture2D* OrigRough= sManifoldFindTex(MatIface,
         { TEXT("Roughness"), TEXT("Rough"), TEXT("Gloss") });
 
-    // Lock source data (read-only) — nullptr if texture missing or non-BGRA8
-    int BCW=0, BCH=0, SpW=0, SpH=0, RoW=0, RoH=0;
-    const uint8* BCData   = sLockBGRA8(OrigBC,    BCW, BCH);
-    const uint8* SpData   = sLockBGRA8(OrigSpec,  SpW, SpH);
-    const uint8* RoData   = sLockBGRA8(OrigRough, RoW, RoH);
+    UE_LOG(LogTemp, Log,
+        TEXT("[GammaTon] Manifold textures for '%s':\n")
+        TEXT("  BaseColor=%s  Specular=%s  Roughness=%s\n")
+        TEXT("  DustTexture=%s  PigmentTexture=%s"),
+        *ActorName,
+        OrigBC    ? *OrigBC->GetName()    : TEXT("NULL(fallback gray 0.75)"),
+        OrigSpec  ? *OrigSpec->GetName()  : TEXT("NULL(fallback 0.5)"),
+        OrigRough ? *OrigRough->GetName() : TEXT("NULL(fallback 0.3)"),
+        DustTexture    ? *DustTexture->GetName()    : TEXT("NULL(flat DustColor)"),
+        PigmentTexture ? *PigmentTexture->GetName() : TEXT("NULL(flat PigmentColor)"));
 
-    // Fallback colors when original textures are unavailable
-    const FLinearColor FallbackBC  (0.75f, 0.75f, 0.75f);  // light gray
+    int BCW=0, BCH=0, SpW=0, SpH=0, RoW=0, RoH=0, DTW=0, DTH=0, PTW=0, PTH=0;
+    const uint8* BCData      = sLockBGRA8(OrigBC,         BCW, BCH);
+    const uint8* SpData      = sLockBGRA8(OrigSpec,       SpW, SpH);
+    const uint8* RoData      = sLockBGRA8(OrigRough,      RoW, RoH);
+    const uint8* DustData    = sLockBGRA8(DustTexture,    DTW, DTH);
+    const uint8* PigmentData = sLockBGRA8(PigmentTexture, PTW, PTH);
+
+    const FLinearColor FallbackBC  (0.75f, 0.75f, 0.75f);
     const float        FallbackSpec = 0.5f;
     const float        FallbackRo   = 0.3f;
+
+    // Helper: UV0 for sub-sample k of texel i. Falls back to atlas UV.
+    auto GetUV = [&](int i, int k, float& u, float& v) {
+        if (UV0Map[i*4+k].valid) {
+            u = UV0Map[i*4+k].u0;
+            v = UV0Map[i*4+k].v0;
+        } else {
+            u = (i % W + SubX[k]) / W;
+            v = (i / W + SubY[k]) / H;
+        }
+    };
 
     // ── BaseColor (RGBA, 4 bpp) ───────────────────────────────────────────────
     {
@@ -570,20 +663,31 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
         Pixels.SetNumUninitialized(N * 4);
         for (int i = 0; i < N; i++)
         {
-            float u  = (i % W + 0.5f) / W;
-            float v  = (i / W + 0.5f) / H;
             float sd = FMath::Clamp(SimTex.sd[i], 0.f, 1.f);
             float sp = FMath::Clamp(SimTex.sp[i], 0.f, 1.f);
             float sh = FMath::Clamp(SimTex.sh[i], 0.f, 1.f);
 
-            FLinearColor Orig = BCData ? sSampleBGRA8(BCData, BCW, BCH, u, v) : FallbackBC;
-            FLinearColor C    = FMath::Lerp(Orig, DustColor,    sd * DustVisibility);
-            C                 = FMath::Lerp(C,    PigmentColor, sp * DustVisibility);
-            C                 = C * (1.0f - sh * WetnessScale);
+            FLinearColor Acc(0.f, 0.f, 0.f, 0.f);
+            for (int k = 0; k < 4; k++)
+            {
+                float u, v;
+                GetUV(i, k, u, v);
 
-            Pixels[i*4+0] = (uint8)(FMath::Clamp(C.R, 0.f, 1.f) * 255.f);
-            Pixels[i*4+1] = (uint8)(FMath::Clamp(C.G, 0.f, 1.f) * 255.f);
-            Pixels[i*4+2] = (uint8)(FMath::Clamp(C.B, 0.f, 1.f) * 255.f);
+                FLinearColor Orig = BCData
+                    ? sSampleBGRA8Bilinear(BCData, BCW, BCH, u, v) : FallbackBC;
+                FLinearColor DustTex = DustData
+                    ? sSampleBGRA8Bilinear(DustData, DTW, DTH, u, v) : FLinearColor::White;
+                FLinearColor PigmentTex = PigmentData
+                    ? sSampleBGRA8Bilinear(PigmentData, PTW, PTH, u, v) : FLinearColor::White;
+
+                FLinearColor C = FMath::Lerp(Orig, DustColor * DustTex,       sd * DustVisibility);
+                C              = FMath::Lerp(C,    PigmentColor * PigmentTex, sp * DustVisibility);
+                C              = C * (1.0f - sh * WetnessScale);
+                Acc.R += C.R; Acc.G += C.G; Acc.B += C.B;
+            }
+            Pixels[i*4+0] = (uint8)(FMath::Clamp(Acc.R * 0.25f, 0.f, 1.f) * 255.f);
+            Pixels[i*4+1] = (uint8)(FMath::Clamp(Acc.G * 0.25f, 0.f, 1.f) * 255.f);
+            Pixels[i*4+2] = (uint8)(FMath::Clamp(Acc.B * 0.25f, 0.f, 1.f) * 255.f);
             Pixels[i*4+3] = 255;
         }
         WritePNG(Pixels, ERGBFormat::RGBA, TEXT("_basecolor.png"));
@@ -595,13 +699,19 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
         Pixels.SetNumUninitialized(N * 4);
         for (int i = 0; i < N; i++)
         {
-            float u    = (i % W + 0.5f) / W;
-            float v    = (i / W + 0.5f) / H;
-            float sd   = FMath::Clamp(SimTex.sd[i], 0.f, 1.f);
-            float sp   = FMath::Clamp(SimTex.sp[i], 0.f, 1.f);
-            float orig = SpData ? sLuminance(sSampleBGRA8(SpData, SpW, SpH, u, v)) : FallbackSpec;
-            float spec = FMath::Clamp(orig - sd * 0.3f - sp * 0.2f, 0.f, 1.f);
-            uint8 B    = (uint8)(spec * 255.f);
+            float sd = FMath::Clamp(SimTex.sd[i], 0.f, 1.f);
+            float sp = FMath::Clamp(SimTex.sp[i], 0.f, 1.f);
+
+            float Acc = 0.f;
+            for (int k = 0; k < 4; k++)
+            {
+                float u, v;
+                GetUV(i, k, u, v);
+                float orig = SpData
+                    ? sLuminance(sSampleBGRA8Bilinear(SpData, SpW, SpH, u, v)) : FallbackSpec;
+                Acc += FMath::Clamp(orig - sd * 0.3f - sp * 0.2f, 0.f, 1.f);
+            }
+            uint8 B = (uint8)(Acc * 0.25f * 255.f);
             Pixels[i*4+0] = B; Pixels[i*4+1] = B; Pixels[i*4+2] = B; Pixels[i*4+3] = 255;
         }
         WritePNG(Pixels, ERGBFormat::RGBA, TEXT("_specular.png"));
@@ -613,19 +723,31 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
         Pixels.SetNumUninitialized(N);
         for (int i = 0; i < N; i++)
         {
-            float u    = (i % W + 0.5f) / W;
-            float v    = (i / W + 0.5f) / H;
-            float orig = RoData ? sLuminance(sSampleBGRA8(RoData, RoW, RoH, u, v)) : FallbackRo;
-            float val  = FMath::Clamp(orig + SimTex.sr[i] * RoughnessScale, 0.f, 1.f);
-            Pixels[i]  = (uint8)(val * 255.f);
+            float Acc = 0.f;
+            for (int k = 0; k < 4; k++)
+            {
+                float u, v;
+                GetUV(i, k, u, v);
+                float orig = RoData
+                    ? sLuminance(sSampleBGRA8Bilinear(RoData, RoW, RoH, u, v)) : FallbackRo;
+                float sd = FMath::Clamp(SimTex.sd[i], 0.f, 1.f);
+                float sp = FMath::Clamp(SimTex.sp[i], 0.f, 1.f);
+                // Dust/pigment deposits roughen the surface, mirroring their specular reduction.
+                // sr adds fine-grained abrasion; sd/sp add deposit-layer roughness.
+                Acc += FMath::Clamp(orig + SimTex.sr[i] * RoughnessScale
+                                         + sd * 0.20f
+                                         + sp * 0.15f, 0.f, 1.f);
+            }
+            Pixels[i] = (uint8)(Acc * 0.25f * 255.f);
         }
         WritePNG(Pixels, ERGBFormat::Gray, TEXT("_roughness.png"));
     }
 
-    // Unlock source data
-    if (BCData   && OrigBC)    OrigBC->Source.UnlockMip(0);
-    if (SpData   && OrigSpec)  OrigSpec->Source.UnlockMip(0);
-    if (RoData   && OrigRough) OrigRough->Source.UnlockMip(0);
+    if (BCData      && OrigBC)         OrigBC->Source.UnlockMip(0);
+    if (SpData      && OrigSpec)       OrigSpec->Source.UnlockMip(0);
+    if (RoData      && OrigRough)      OrigRough->Source.UnlockMip(0);
+    if (DustData    && DustTexture)    DustTexture->Source.UnlockMip(0);
+    if (PigmentData && PigmentTexture) PigmentTexture->Source.UnlockMip(0);
 
     UE_LOG(LogTemp, Log, TEXT("[GammaTon] Manifold PNGs saved → %s"), *SaveDir);
     return SaveDir;
