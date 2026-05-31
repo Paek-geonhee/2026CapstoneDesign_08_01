@@ -17,6 +17,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Editor.h"
 #include "Selection.h"
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/Paths.h"
@@ -348,8 +349,17 @@ TSharedRef<SWidget> SGammaTonPanel::MakeDirFloatBox(float& Val) {
 // CX/CY/CZ 전용 — 드래그 없이 직접 타이핑
 TSharedRef<SWidget> SGammaTonPanel::MakePosEntryBox(float& Val) {
     return SNew(SNumericEntryBox<float>)
-        .AllowSpin(false)
+        .AllowSpin(true)
+        .MinValue(TOptional<float>())
+        .MaxValue(TOptional<float>())
+        .MinSliderValue(TOptional<float>())
+        .MaxSliderValue(TOptional<float>())
+        .LinearDeltaSensitivity(1)
+        .Delta(1.0f)
+        .ShiftMultiplier(0.1f)
+        .CtrlMultiplier(10.0f)
         .Value_Lambda([&Val]() { return TOptional<float>(Val); })
+        .OnValueChanged_Lambda([this, &Val](float v) { Val = v; RefreshVisualizer(); })
         .OnValueCommitted_Lambda([this, &Val](float v, ETextCommit::Type) { Val = v; RefreshVisualizer(); });
 }
 TSharedRef<SWidget> SGammaTonPanel::MakeUnitBox(float& Val) {
@@ -567,6 +577,53 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                     SNew(STextBlock)
                     .Text(LOCTEXT("NoActors", "(Click Refresh to populate from current selection)"))
                     .ColorAndOpacity(FLinearColor(0.5f, 0.5f, 0.5f, 1.f))
+                ]
+            ]
+
+            // ── Occluder Actors ───────────────────────────────────────────────
+            + SScrollBox::Slot().Padding(8, 8, 8, 2)
+            [ SNew(STextBlock).Text(LOCTEXT("OccluderHdr", "── Occluder Actors ──────────────────────────"))
+              .ToolTipText(LOCTEXT("TipOccluderHdr",
+                "γ-ton 경로에 영향을 주지만 텍스처 출력은 받지 않는 오브젝트.\n"
+                "지붕, 인접 건물 등 주변 오클루더를 등록하면 타깃 오브젝트의\n"
+                "풍화 패턴이 실제 환경에 맞게 형성됩니다.")) ]
+            // Auto-occluder toggle + radius
+            + SScrollBox::Slot().Padding(12, 4, 12, 0)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                [
+                    SNew(SCheckBox)
+                    .IsChecked_Lambda([this]() {
+                        return bAutoOccluder_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                    })
+                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) {
+                        bAutoOccluder_ = (s == ECheckBoxState::Checked);
+                    })
+                ]
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0, 8, 0)
+                [
+                    SNew(STextBlock)
+                    .Text(LOCTEXT("AutoOccLabel", "Auto-detect nearby occluders"))
+                    .ToolTipText(LOCTEXT("TipAutoOcc",
+                        "Run/Trace 실행 시 타깃 액터 주변의 오브젝트를\n"
+                        "자동으로 Occluder에 추가합니다.\n"
+                        "StaticMeshComponent를 가진 액터만 포함됩니다."))
+                ]
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
+                [
+                    SNew(STextBlock).Text(LOCTEXT("AutoOccRadLabel", "Radius (cm):"))
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    SNew(SSpinBox<float>)
+                    .MinValue(0.f).MaxValue(100000.f).Delta(50.f)
+                    .Value_Lambda([this]() { return AutoOccluderRadius_; })
+                    .OnValueChanged_Lambda([this](float v) { AutoOccluderRadius_ = v; })
+                    .ToolTipText(LOCTEXT("TipAutoOccRadius",
+                        "타깃 액터 AABB 중심에서 이 반경(cm) 이내의\n"
+                        "오브젝트를 자동으로 Occluder로 등록합니다.\n"
+                        "기본값: 500 cm"))
                 ]
             ]
 
@@ -1338,13 +1395,21 @@ FReply SGammaTonPanel::OnRunClicked()
         return FReply::Handled();
     }
 
-    SetStatus(FString::Printf(TEXT("Extracting %d actor(s)..."), Actors.Num()));
+    if (bAutoOccluder_)
+        AutoPopulateOccluders(Actors);
+
+    TArray<AActor*> OccluderActors;
+    for (const auto& Weak : OccluderActors_)
+        if (AActor* A = Weak.Get()) OccluderActors.Add(A);
+
+    SetStatus(FString::Printf(TEXT("Extracting %d actor(s)%s..."), Actors.Num(),
+        OccluderActors.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" + %d occluder(s)"), OccluderActors.Num())));
 
     GTRayIntersector           Intersector;
     TArray<GTGammaReflectance> PerActorRefl    = BuildPerActorRefl(Actors.Num());
     TArray<GTMaterialProps>    PerActorInitMat = BuildPerActorInitMat(Actors.Num());
 
-    FGTSceneData Scene = FGammaTonMeshBridge::BuildScene(Actors, PerActorRefl, PerActorInitMat, Intersector, TextureSize);
+    FGTSceneData Scene = FGammaTonMeshBridge::BuildScene(Actors, OccluderActors, PerActorRefl, PerActorInitMat, Intersector, TextureSize);
     if (!Scene.valid) {
         SetStatus(TEXT("No valid Static Mesh components found."));
         return FReply::Handled();
@@ -1604,11 +1669,18 @@ FReply SGammaTonPanel::OnTraceRayClicked()
         return FReply::Handled();
     }
 
+    if (bAutoOccluder_)
+        AutoPopulateOccluders(Actors);
+
+    TArray<AActor*> OccluderActors;
+    for (const auto& Weak : OccluderActors_)
+        if (AActor* A = Weak.Get()) OccluderActors.Add(A);
+
     GTRayIntersector           Intersector;
     TArray<GTGammaReflectance> PerActorRefl    = BuildPerActorRefl(Actors.Num());
     TArray<GTMaterialProps>    PerActorInitMat = BuildPerActorInitMat(Actors.Num());
 
-    FGTSceneData Scene = FGammaTonMeshBridge::BuildScene(Actors, PerActorRefl, PerActorInitMat, Intersector, TextureSize);
+    FGTSceneData Scene = FGammaTonMeshBridge::BuildScene(Actors, OccluderActors, PerActorRefl, PerActorInitMat, Intersector, TextureSize);
     if (!Scene.valid) {
         SetStatus(TEXT("No valid Static Mesh components found."));
         return FReply::Handled();
@@ -1706,5 +1778,42 @@ FReply SGammaTonPanel::OnTraceRayClicked()
 
     return FReply::Handled();
 }
+
+// ── Auto occluder population ──────────────────────────────────────────────────
+
+void SGammaTonPanel::AutoPopulateOccluders(const TArray<AActor*>& Targets)
+{
+    if (Targets.IsEmpty()) return;
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World) return;
+
+    // Compute combined AABB of all target actors
+    FBox TargetBounds(EForceInit::ForceInit);
+    for (AActor* A : Targets)
+        TargetBounds += A->GetComponentsBoundingBox(true);
+    FVector Center = TargetBounds.GetCenter();
+
+    int32 Added = 0;
+    for (TActorIterator<AActor> It(World); It; ++It) {
+        AActor* Candidate = *It;
+        if (Targets.Contains(Candidate)) continue;
+        if (!Candidate->FindComponentByClass<UStaticMeshComponent>()) continue;
+
+        bool bAlready = false;
+        for (const auto& Weak : OccluderActors_)
+            if (Weak.Get() == Candidate) { bAlready = true; break; }
+        if (bAlready) continue;
+
+        FBox CandBounds = Candidate->GetComponentsBoundingBox(true);
+        // Distance from center to the nearest point on the candidate AABB
+        float Dist = FVector::Dist(Center, CandBounds.GetClosestPointTo(Center));
+        if (Dist <= AutoOccluderRadius_) {
+            OccluderActors_.Add(Candidate);
+            Added++;
+        }
+    }
+
+}
+
 
 #undef LOCTEXT_NAMESPACE

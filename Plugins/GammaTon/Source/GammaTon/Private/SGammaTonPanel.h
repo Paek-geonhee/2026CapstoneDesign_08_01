@@ -73,6 +73,12 @@ private:
     GTTonType     EntryToTonType(const FTonTypeEntry& e) const;
     GTGammaSource EntryToSource (const FTonTypeEntry& e) const;
 
+    // ── Occluder actors (physics-only, no texture output) ────────────────
+    TArray<TWeakObjectPtr<AActor>> OccluderActors_;
+    bool  bAutoOccluder_      = true;
+    float AutoOccluderRadius_ = 500.f;
+    void  AutoPopulateOccluders(const TArray<AActor*>& Targets);
+
     // ── Per-actor γ-reflectance ───────────────────────────────────────────
     struct FActorReflEntry {
         FString Name;
