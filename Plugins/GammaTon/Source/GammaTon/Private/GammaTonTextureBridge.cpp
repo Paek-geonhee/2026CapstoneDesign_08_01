@@ -37,7 +37,7 @@ UTexture2D* FGammaTonTextureBridge::CreateAndSaveTexture(
     const int H = SimTex.height;
 
     FString Safe    = ActorName.Replace(TEXT(" "), TEXT("_"));
-    FString PkgPath = TEXT("/Game/GammaTon/") + Safe + TEXT("_Dust");
+    FString PkgPath = TEXT("/Game/GammaTon/") + Safe + TEXT("/") + Safe + TEXT("_Dust");
     UPackage* Pkg   = CreatePackage(*PkgPath);
     Pkg->FullyLoad();
 
@@ -264,83 +264,48 @@ void FGammaTonTextureBridge::ApplyToComponent(
 {
     if (!Comp || !AgingTexture) return;
 
-    // Read from the component (respects per-actor material overrides in the level).
-    // Persist the original material path in an actor tag so re-runs don't pick up our own MID.
-    UMaterialInterface* OrigIface = nullptr;
-    {
+    // Always read the current material from the component.
+    // If it's GammaTon's own MID, walk up to the parent to get the real base.
+    UMaterialInterface* OrigIface = Comp->GetMaterial(0);
+    if (UMaterialInstanceDynamic* ExistingMID = Cast<UMaterialInstanceDynamic>(OrigIface)) {
+        UTexture* Dummy = nullptr;
+        if (ExistingMID->GetTextureParameterValue(FMaterialParameterInfo(TEXT("AgingTex")), Dummy))
+            OrigIface = ExistingMID->Parent;
+    }
+
+    // Remove stale tags written by the old system.
+    if (AActor* Owner = Comp->GetOwner()) {
         static const FString TagPrefix = TEXT("GammaTon_OrigMat=");
-        AActor* Owner = Comp->GetOwner();
-        if (Owner) {
-            for (const FName& Tag : Owner->Tags) {
-                FString S = Tag.ToString();
-                if (S.StartsWith(TagPrefix)) {
-                    OrigIface = LoadObject<UMaterialInterface>(nullptr, *S.Mid(TagPrefix.Len()));
-                    break;
-                }
-            }
-        }
-        if (!OrigIface) {
-            OrigIface = Comp->GetMaterial(0);
-            // Persist path so the next run skips a MID we applied
-            if (OrigIface && !Cast<UMaterialInstanceDynamic>(OrigIface) && Owner) {
-                FName NewTag = *(TagPrefix + OrigIface->GetPathName());
-                if (!Owner->Tags.Contains(NewTag))
-                    Owner->Tags.Add(NewTag);
-            }
-        }
+        Owner->Tags.RemoveAll([&](const FName& T) { return T.ToString().StartsWith(TagPrefix); });
     }
 
     UMaterial* OrigBase = nullptr;
-    if (auto* M  = Cast<UMaterial>(OrigIface))            OrigBase = M;
+    if (auto* M  = Cast<UMaterial>(OrigIface))             OrigBase = M;
     else if (auto* MI = Cast<UMaterialInstance>(OrigIface)) OrigBase = MI->GetMaterial();
 
-    FString Safe   = ActorName.Replace(TEXT(" "), TEXT("_"));
-    FString MatPkg = TEXT("/Game/GammaTon/") + Safe + TEXT("_DustMat");
-    FString MatRef = MatPkg + TEXT(".") + Safe + TEXT("_DustMat");
+    FString Safe     = ActorName.Replace(TEXT(" "), TEXT("_"));
+    FString MatPkg   = TEXT("/Game/GammaTon/") + Safe + TEXT("/") + Safe + TEXT("_DustMat");
+    FString MatRef   = MatPkg + TEXT(".") + Safe + TEXT("_DustMat");
     FName   MatFName = *(Safe + TEXT("_DustMat"));
 
-    // Cache check: valid if DustMat has AgingTex, DustTexture AND a wired BaseColor.
-    // Stale caches (missing DustTexture) trigger a regeneration for multi-texture blending.
-    UMaterial* DustMat = LoadObject<UMaterial>(nullptr, *MatRef);
-    if (DustMat) {
-        bool bHasAgingTex = false, bHasDustTex = false, bHasDustVis = false;
-        for (UMaterialExpression* Expr : DustMat->GetExpressionCollection().Expressions) {
-            if (auto* P = Cast<UMaterialExpressionTextureSampleParameter2D>(Expr)) {
-                if (P->ParameterName == TEXT("AgingTex"))    bHasAgingTex = true;
-                if (P->ParameterName == TEXT("DustTexture")) bHasDustTex  = true;
-            }
-            if (auto* S = Cast<UMaterialExpressionScalarParameter>(Expr))
-                if (S->ParameterName == TEXT("DustVisibility")) bHasDustVis = true;
-        }
+    // Always delete the old DustMat and recreate from the current base material.
+    if (UMaterial* Old = LoadObject<UMaterial>(nullptr, *MatRef))
+        Old->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
 
-        UMaterialEditorOnlyData* CachedEd = DustMat->GetEditorOnlyData();
-        bool bHasBaseColor = CachedEd && (CachedEd->BaseColor.Expression != nullptr);
-
-        if (!bHasAgingTex || !bHasDustTex || !bHasDustVis || !bHasBaseColor) {
-            UE_LOG(LogTemp, Log, TEXT("[GammaTon] Cached DustMat outdated — regenerating"));
-            DustMat = nullptr;
-        }
+    UPackage* Pkg = CreatePackage(*MatPkg);
+    Pkg->FullyLoad();
+    UMaterial* DustMat = nullptr;
+    if (OrigBase) {
+        OrigBase->GetEditorOnlyData();
+        DustMat = DuplicateObject<UMaterial>(OrigBase, Pkg, MatFName);
     }
-
-    if (!DustMat) {
-        UPackage* Pkg = CreatePackage(*MatPkg);
-        Pkg->FullyLoad();
-        if (OrigBase) {
-            // Force-initialize UMaterialEditorOnlyData before duplicating.
-            // UE4-format assets create this lazily; without this call the
-            // duplicate's GetEditorOnlyData() returns an empty object with
-            // no expressions, leaving OrigColor null after duplication.
-            OrigBase->GetEditorOnlyData();
-            DustMat = DuplicateObject<UMaterial>(OrigBase, Pkg, MatFName);
-        } else {
-            DustMat = NewObject<UMaterial>(Pkg, MatFName, RF_Public | RF_Standalone | RF_Transactional);
-        }
-        DustMat->SetFlags(RF_Public | RF_Standalone | RF_Transactional);
-        InjectAgingOverlay(DustMat, AtlasUVChannel);
-        Pkg->MarkPackageDirty();
-        FAssetRegistryModule::AssetCreated(DustMat);
-        UE_LOG(LogTemp, Log, TEXT("[GammaTon] Created DustMat for %s"), *ActorName);
-    }
+    if (!DustMat)
+        DustMat = NewObject<UMaterial>(Pkg, MatFName, RF_Public | RF_Standalone | RF_Transactional);
+    DustMat->SetFlags(RF_Public | RF_Standalone | RF_Transactional);
+    InjectAgingOverlay(DustMat, AtlasUVChannel);
+    Pkg->MarkPackageDirty();
+    FAssetRegistryModule::AssetCreated(DustMat);
+    UE_LOG(LogTemp, Log, TEXT("[GammaTon] Created DustMat for %s"), *ActorName);
 
     UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(DustMat, Comp);
 
@@ -548,7 +513,7 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
 
     // ── Output directory ──────────────────────────────────────────────────────
     FString Safe    = ActorName.Replace(TEXT(" "), TEXT("_"));
-    FString SaveDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GammaTon"), TEXT("Manifold"));
+    FString SaveDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GammaTon"), Safe, TEXT("Manifold"));
     IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
     if (!PF.DirectoryExists(*SaveDir)) PF.CreateDirectoryTree(*SaveDir);
 

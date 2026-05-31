@@ -1415,11 +1415,24 @@ FReply SGammaTonPanel::OnRunClicked()
         return FReply::Handled();
     }
 
-    // Pre-load existing textures for accumulation
+    // Pre-load existing textures for accumulation.
+    // Skip actors whose material changed (no GammaTon MID) — treat them as fresh starts.
     int Preloaded = 0;
     for (int i = 0; i < (int)Scene.textures.size(); i++) {
+        UStaticMeshComponent* SMC = Scene.components[i];
+        if (!SMC) continue;
+        UMaterialInstanceDynamic* PrevMID = Cast<UMaterialInstanceDynamic>(SMC->GetMaterial(0));
+        if (PrevMID) {
+            UTexture* Dummy = nullptr;
+            if (!PrevMID->GetTextureParameterValue(FMaterialParameterInfo(TEXT("AgingTex")), Dummy))
+                PrevMID = nullptr;
+        }
+        if (!PrevMID) continue;  // material changed or first run — start fresh
+
+        // TODO: actorNames 는 현재 Actor->GetName() (내부 이름) 사용 중.
+        // TODO: GetActorLabel() (Outliner 표시 이름) 으로 통일하고 저장 경로도 정리 필요.
         FString Safe   = Scene.actorNames[i].Replace(TEXT(" "), TEXT("_"));
-        FString TexRef = TEXT("/Game/GammaTon/") + Safe + TEXT("_Dust.") + Safe + TEXT("_Dust");
+        FString TexRef = TEXT("/Game/GammaTon/") + Safe + TEXT("/") + Safe + TEXT("_Dust.") + Safe + TEXT("_Dust");
         if (UTexture2D* Prev = LoadObject<UTexture2D>(nullptr, *TexRef)) {
             FGammaTonTextureBridge::LoadTextureIntoObjTexture(Prev, Scene.textures[i]);
             Preloaded++;
@@ -1689,7 +1702,7 @@ FReply SGammaTonPanel::OnTraceRayClicked()
     // Load prior textures so tex_before values reflect accumulated state.
     for (int i = 0; i < (int)Scene.textures.size(); i++) {
         FString Safe   = Scene.actorNames[i].Replace(TEXT(" "), TEXT("_"));
-        FString TexRef = TEXT("/Game/GammaTon/") + Safe + TEXT("_Dust.") + Safe + TEXT("_Dust");
+        FString TexRef = TEXT("/Game/GammaTon/") + Safe + TEXT("/") + Safe + TEXT("_Dust.") + Safe + TEXT("_Dust");
         if (UTexture2D* Prev = LoadObject<UTexture2D>(nullptr, *TexRef))
             FGammaTonTextureBridge::LoadTextureIntoObjTexture(Prev, Scene.textures[i]);
     }

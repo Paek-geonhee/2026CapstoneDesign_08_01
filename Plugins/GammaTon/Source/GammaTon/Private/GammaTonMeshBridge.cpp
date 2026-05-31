@@ -218,7 +218,9 @@ FGTSceneData FGammaTonMeshBridge::BuildScene(
         Scene.textures.emplace_back(TextureSize, TextureSize);
         Scene.meshes.push_back(std::move(Mesh));
         Scene.components.Add(SMC);
-        Scene.actorNames.Add(Actor->GetName());
+        // Label_GUID8: human-readable label + first 8 chars of persistent GUID for uniqueness.
+        FString Label = Actor->GetActorLabel() + TEXT("_") + Actor->GetActorGuid().ToString().Left(8);
+        Scene.actorNames.Add(Label);
         Scene.atlasUVChannels.Add(AtlasChannel);
     }
 
