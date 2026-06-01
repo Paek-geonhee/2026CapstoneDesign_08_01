@@ -68,10 +68,19 @@ public:
         const TArray<float>& Tensor7D,
         int32 Width,
         int32 Height,
+
+        UTexture2D* ExistingBaseColor,
+        UTexture2D* ExistingSpecular,
+        UTexture2D* ExistingRoughness,
+
         UTexture2D*& OutBaseColor,
         UTexture2D*& OutSpecular,
         UTexture2D*& OutRoughness);
 
+    UFUNCTION(BlueprintCallable)
+    static void TextureDeallocation(UTexture2D* Texture);
+
+    void UpdateTexture(UTexture2D* Texture, int32 Width, int32 Height, const TArray<uint8>& RawData);
 
     UFUNCTION(BlueprintCallable)
     static void ApplyWeatheringTexturesToMesh(
@@ -83,6 +92,7 @@ public:
         FName BaseParamName,
         FName SpecParamName,
         FName RoughParamName,
+        UMaterialInstanceDynamic* ExistingMID,
         UMaterialInstanceDynamic*& OutMID);
 
     UFUNCTION(BlueprintCallable, Category = "MWS")

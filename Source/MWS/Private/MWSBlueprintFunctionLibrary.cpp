@@ -468,6 +468,7 @@ void UMWSBlueprintFunctionLibrary::BuildNearestTrajectoryCache(
     int32 T,
     TArray<int32>& OutNearestIndices)
 {
+    double Start = FPlatformTime::Seconds();
     const int32 TotalPixels = Texture7D.Num() / 7;
 
     OutNearestIndices.SetNumUninitialized(TotalPixels);
@@ -476,38 +477,42 @@ void UMWSBlueprintFunctionLibrary::BuildNearestTrajectoryCache(
         reinterpret_cast<const FWeatheringSample*>(
             TrajectorySamples.GetData());
 
-    for (int32 i = 0; i < TotalPixels; ++i)
-    {
-        const float* Pixel = &Texture7D[i * 7];
-
-        int32 BestIdx = 0;
-        float BestDist = MAX_flt;
-
-        for (int32 t = 0; t < T; ++t)
+    ParallelFor(TotalPixels, [&](int32 i)
         {
-            const float* Sample = Traj[t].Data;
+            const float* Pixel = &Texture7D[i * 7];
 
-            float DistSq = 0.0f;
+            int32 BestIdx = 0;
+            float BestDist = MAX_flt;
 
-            for (int32 c = 0; c < 7; ++c)
+            for (int32 t = 0; t < T; ++t)
             {
-                const float D = Sample[c] - Pixel[c];
-                DistSq += D * D;
+                const float* Sample = Traj[t].Data;
+
+                float DistSq = 0.0f;
+
+                for (int32 c = 0; c < 7; ++c)
+                {
+                    const float D = Sample[c] - Pixel[c];
+                    DistSq += D * D;
+                }
+
+                if (DistSq < BestDist)
+                {
+                    BestDist = DistSq;
+                    BestIdx = t;
+                }
             }
 
-            if (DistSq < BestDist)
-            {
-                BestDist = DistSq;
-                BestIdx = t;
-            }
-        }
-
-        OutNearestIndices[i] = BestIdx;
-    }
-
-    UE_LOG(LogTemp, Log,
-        TEXT("BuildNearestTrajectoryCache Complete. Pixels=%d"),
-        TotalPixels);
+            OutNearestIndices[i] = BestIdx;
+        });
+    double End = FPlatformTime::Seconds();
+    UE_LOG(LogTemp, Warning,
+        TEXT("Pixels=%d T=%d"),
+        TotalPixels,
+        T);
+    UE_LOG(LogTemp, Warning,
+        TEXT("BuildNearestTrajectoryCache %.3f ms"),
+        (End - Start) * 1000.0);
 }
 
 void UMWSBlueprintFunctionLibrary::InterpolateWeatheringCached(
@@ -564,23 +569,35 @@ void UMWSBlueprintFunctionLibrary::InterpolateWeatheringCached(
 
         float* OutPixel = &OutResult[i * 7];
 
-        for (int32 c = 0; c < 7; ++c)
-        {
-            const float ResultA =
-                PixelA[c] +
-                (SampleInterp[c] - SampleA[c]);
+        //////////////// Unrolling ///////////////////
+        const float ResultA0 = PixelA[0] + (SampleInterp[0] - SampleA[0]);
+        const float ResultB0 = PixelB[0] - (SampleB[0] - SampleInterp[0]);
+        OutPixel[0] = FMath::Clamp(InvAlpha * ResultA0 + Alpha * ResultB0, 0.0f, 1.0f);
 
-            const float ResultB =
-                PixelB[c] -
-                (SampleB[c] - SampleInterp[c]);
+        const float ResultA1 = PixelA[1] + (SampleInterp[1] - SampleA[1]);
+        const float ResultB1 = PixelB[1] - (SampleB[1] - SampleInterp[1]);
+        OutPixel[1] = FMath::Clamp(InvAlpha * ResultA1 + Alpha * ResultB1, 0.0f, 1.0f);
 
-            const float Reconstructed =
-                InvAlpha * ResultA +
-                Alpha * ResultB;
+        const float ResultA2 = PixelA[2] + (SampleInterp[2] - SampleA[2]);
+        const float ResultB2 = PixelB[2] - (SampleB[2] - SampleInterp[2]);
+        OutPixel[2] = FMath::Clamp(InvAlpha * ResultA2 + Alpha * ResultB2, 0.0f, 1.0f);
 
-            OutPixel[c] =
-                FMath::Clamp(Reconstructed, 0.0f, 1.0f);
-        }
+        const float ResultA3 = PixelA[3] + (SampleInterp[3] - SampleA[3]);
+        const float ResultB3 = PixelB[3] - (SampleB[3] - SampleInterp[3]);
+        OutPixel[3] = FMath::Clamp(InvAlpha * ResultA3 + Alpha * ResultB3, 0.0f, 1.0f);
+
+        const float ResultA4 = PixelA[4] + (SampleInterp[4] - SampleA[4]);
+        const float ResultB4 = PixelB[4] - (SampleB[4] - SampleInterp[4]);
+        OutPixel[4] = FMath::Clamp(InvAlpha * ResultA4 + Alpha * ResultB4, 0.0f, 1.0f);
+
+        const float ResultA5 = PixelA[5] + (SampleInterp[5] - SampleA[5]);
+        const float ResultB5 = PixelB[5] - (SampleB[5] - SampleInterp[5]);
+        OutPixel[5] = FMath::Clamp(InvAlpha * ResultA5 + Alpha * ResultB5, 0.0f, 1.0f);
+
+        const float ResultA6 = PixelA[6] + (SampleInterp[6] - SampleA[6]);
+        const float ResultB6 = PixelB[6] - (SampleB[6] - SampleInterp[6]);
+        OutPixel[6] = FMath::Clamp(InvAlpha * ResultA6 + Alpha * ResultB6, 0.0f, 1.0f);
+        //////////////// ////////////// ///////////////////
     }
 }
 
@@ -588,6 +605,11 @@ void UMWSBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
     const TArray<float>& Tensor7D,
     int32 Width,
     int32 Height,
+
+    UTexture2D* ExistingBaseColor,
+    UTexture2D* ExistingSpecular,
+    UTexture2D* ExistingRoughness,
+
     UTexture2D*& OutBaseColor,
     UTexture2D*& OutSpecular,
     UTexture2D*& OutRoughness)
@@ -606,9 +628,15 @@ void UMWSBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
         return Tex;
         };
 
-    OutBaseColor = CreateTex(true);
-    OutSpecular = CreateTex(false);
-    OutRoughness = CreateTex(false);
+    if (!ExistingBaseColor) OutBaseColor = CreateTex(true);
+    else                    OutBaseColor = ExistingBaseColor;
+
+    if (!ExistingSpecular) OutSpecular = CreateTex(false);
+    else                   OutSpecular = ExistingSpecular;
+
+    if (!ExistingRoughness) OutRoughness = CreateTex(false);
+    else                    OutRoughness = ExistingRoughness;
+        
 
     // 2. Source 데이터를 직접 수정 (BulkData.Lock 대신 Mip.BulkData 사용)
     auto WriteToTexture = [&](UTexture2D* Tex, int32 ChannelOffset, bool bIsRoughness) {
@@ -631,7 +659,7 @@ void UMWSBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
 
         Tex->Source.UnlockMip(0);
         // [중요] 컴파일을 트리거하지 않고 에셋 상태만 갱신
-        Tex->PostEditChange();
+        Tex->UpdateResource();
         };
 
     WriteToTexture(OutBaseColor, 0, false);
@@ -665,6 +693,24 @@ void UMWSBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
     LogTextureSource(TEXT("RG"), OutRoughness);
 }
 
+void UMWSBlueprintFunctionLibrary::TextureDeallocation(UTexture2D* Texture)
+{
+    if (IsValid(Texture))
+    {
+        // 1. Root Set에서 제거하여 GC가 수집할 수 있도록 함
+        Texture->RemoveFromRoot();
+
+        // 2. 텍스처 리소스와 메모리 정리
+        // 텍스처가 가진 렌더링 리소스를 해제합니다.
+        Texture->ReleaseResource();
+
+        // 3. (선택 사항) 명시적 파괴 요청
+        // MarkAsGarbage는 객체를 즉시 파괴하지는 않지만, 
+        // 다음 GC 타임에 메모리에서 확실히 제거되도록 표시합니다.
+        Texture->MarkAsGarbage();
+    }
+}
+
 void UMWSBlueprintFunctionLibrary::FinalizeTextureUpdate(UTexture2D* Texture)
 {
     UE_LOG(LogTemp, Warning,
@@ -690,6 +736,7 @@ void UMWSBlueprintFunctionLibrary::ApplyWeatheringTexturesToMesh(
     FName BaseParamName,
     FName SpecParamName,
     FName RoughParamName,
+    UMaterialInstanceDynamic* ExistingMID,
     UMaterialInstanceDynamic*& OutMID)
 {
     OutMID = nullptr;
@@ -724,10 +771,12 @@ void UMWSBlueprintFunctionLibrary::ApplyWeatheringTexturesToMesh(
         return;
     }
 
-    UMaterialInstanceDynamic* MID =
-        MeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(
-            MaterialIndex,
-            BaseMaterial);
+    UMaterialInstanceDynamic* MID = ExistingMID;
+
+    if (!MID)
+    {
+        MID = MeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(MaterialIndex, BaseMaterial);
+    }
 
     if (!MID)
     {
