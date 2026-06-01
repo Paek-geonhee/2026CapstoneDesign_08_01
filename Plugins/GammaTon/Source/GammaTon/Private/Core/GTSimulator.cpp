@@ -348,11 +348,13 @@ void GTSimulator::traceTon(GTTon ton, const GTTonType& type, GTIterationStats& s
             else
                 flow_dir = randomTangentDir(n, rng);
 
-            // Move along surface tangent, then cast back toward surface via -n.
-            // Shooting in flow_dir (tangent) causes horizontal surfaces to never
-            // re-intersect — the particle escapes upward into empty space.
-            GTVec3 flow_dest = hit.position + flow_dir * config_.flow_step;
-            origin = flow_dest + n * (config_.flow_step * 0.15f + 2.0f);
+            // Exponential-distributed step length (Poisson process) — flow_step is the mean,
+            // not a fixed value. Fixed step causes regular banding on smooth curved surfaces.
+            std::exponential_distribution<float> expDist(1.0f / config_.flow_step);
+            float actual_step = std::min(expDist(rng), config_.flow_step * 4.0f);
+
+            GTVec3 flow_dest = hit.position + flow_dir * actual_step;
+            origin = flow_dest + n * (actual_step * 0.15f + 2.0f);
             dir    = n * -1.0f;
 
         } else {
@@ -395,15 +397,19 @@ void GTSimulator::traceTon(GTTon ton, const GTTonType& type, GTIterationStats& s
                 }
             }
 
-            if (textures_ && hit.geom_id >= 0 && hit.geom_id < (int)textures_->size()) {
-                GTVec2 uv = hitAtlasUV(hit, surfel);
-                (*textures_)[hit.geom_id].deposit(uv.x, uv.y, d_sd, d_sp, d_sr, d_sh);
+            // [D] Probabilistic deposit gate: only a fraction of settling tons leaves a mark.
+            const bool doDeposit = (config_.probabilistic_deposit >= 1.0f)
+                                || (u01(rng) < config_.probabilistic_deposit);
+            if (doDeposit) {
+                if (textures_ && hit.geom_id >= 0 && hit.geom_id < (int)textures_->size()) {
+                    GTVec2 uv = hitAtlasUV(hit, surfel);
+                    (*textures_)[hit.geom_id].deposit(uv.x, uv.y, d_sd, d_sp, d_sr, d_sh);
+                }
+                surfel.material.sd = std::min(1.0f, surfel.material.sd + d_sd);
+                surfel.material.sp = std::min(1.0f, surfel.material.sp + d_sp);
+                surfel.material.sr = std::min(1.0f, surfel.material.sr + d_sr);
+                surfel.material.sh = std::min(1.0f, surfel.material.sh + d_sh);
             }
-
-            surfel.material.sd = std::min(1.0f, surfel.material.sd + d_sd);
-            surfel.material.sp = std::min(1.0f, surfel.material.sp + d_sp);
-            surfel.material.sr = std::min(1.0f, surfel.material.sr + d_sr);
-            surfel.material.sh = std::min(1.0f, surfel.material.sh + d_sh);
 
             stats.dust_deposited += d_sd;
             stats.ev_settle++;
@@ -647,9 +653,11 @@ GTRayPath GTSimulator::traceTonDebug() {
             else
                 flow_dir = randomTangentDir(n, dbg_rng);
             rec.dir_out = flow_dir;
-            // Mirror traceTon fix: lift off surface, shoot back into it via -n
-            GTVec3 flow_dest = hit.position + flow_dir * config_.flow_step;
-            origin = flow_dest + n * (config_.flow_step * 0.15f + 2.0f);
+            // Mirror traceTon: exponential step to avoid banding on smooth surfaces
+            std::exponential_distribution<float> expDistDbg(1.0f / config_.flow_step);
+            float actual_step_dbg = std::min(expDistDbg(dbg_rng), config_.flow_step * 4.0f);
+            GTVec3 flow_dest = hit.position + flow_dir * actual_step_dbg;
+            origin = flow_dest + n * (actual_step_dbg * 0.15f + 2.0f);
             dir    = n * -1.0f;
 
         } else {

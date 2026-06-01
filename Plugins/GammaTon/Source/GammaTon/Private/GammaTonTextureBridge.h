@@ -30,15 +30,20 @@ public:
                                  float                 DustVisibility  = 1.0f);
 
     // Export BaseColor / Specular / Roughness PNGs for Manifold input.
-    // Composites original PBR textures from Comp's material with AgingTex.
+    // Rasterizes Mesh triangles in atlas UV1 space to build a per-texel UV0 map,
+    // then composites original PBR textures from Comp's material with AgingTex
+    // using bilinear sampling at the correct UV0 position.
     // Saved to {ProjectSavedDir}/GammaTon/Manifold/{Safe_ActorName}_{channel}.png
     // Returns the export directory path, or empty string on failure.
     static FString ExportManifoldPNGs(const GTObjTexture&   SimTex,
+                                      const GTMesh&         Mesh,
                                       UStaticMeshComponent* Comp,
                                       const FString&        ActorName,
                                       FLinearColor          DustColor,
                                       FLinearColor          PigmentColor,
                                       float                 DustVisibility = 1.0f,
+                                      UTexture2D*           DustTexture    = nullptr,
+                                      UTexture2D*           PigmentTexture = nullptr,
                                       float                 WetnessScale   = 0.4f,
                                       float                 RoughnessScale = 0.35f);
 };

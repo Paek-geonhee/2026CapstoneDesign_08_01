@@ -33,6 +33,10 @@ public:
         int32 T,                      // 궤적 길이
         float Alpha,
         TArray<float>& OutResult);     // 결과 저장용 (H * W * 7)
+    UFUNCTION(BlueprintCallable, Category = "Weathering")
+    static TArray<float> LoadWeatheringTensorsFromFiles(const FString& DirectoryPath);
+    UFUNCTION(BlueprintCallable, Category = "Weathering")
+    static bool LoadRawPNGData(const FString& FilePath, TArray<uint8>& OutData, int32& OutWidth, int32& OutHeight);
 
     UFUNCTION(BlueprintCallable, Category = "Weathering")
     static void InterpolateWeatheringCached(
@@ -80,6 +84,9 @@ public:
         FName SpecParamName,
         FName RoughParamName,
         UMaterialInstanceDynamic*& OutMID);
+
+    UFUNCTION(BlueprintCallable, Category = "MWS")
+    static void FinalizeTextureUpdate(UTexture2D* Texture);
 };
 
 

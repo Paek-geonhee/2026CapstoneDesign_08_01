@@ -39,6 +39,7 @@ def build_weathering_trajectory(embedded, edge_src, edge_dst, edge_weight, start
 
     while current != start_idx:
         if current == -9999:
+            print(f"끊김 발생! 끊긴 노드 인덱스: {current}, 현재까지 경로: {path}")
             raise ValueError("Trajectory path disconnected")
 
         path.append(current)

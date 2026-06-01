@@ -1,5 +1,7 @@
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
 """ 
 Description
@@ -177,7 +179,7 @@ import numpy as np
 
 def Get_KNN_Graph_Adaptive(
     samples_7d,
-    K=8,
+    K=16,
     epsilon_scale=1.5
 ):
     """
@@ -199,99 +201,155 @@ def Get_KNN_Graph_Adaptive(
     weather_score : np.array(N,)
     """
 
+    # N = samples_7d.shape[0]
+
+    # # =====================================================
+    # # 1. weather score
+    # # =====================================================
+
+    # weather_score = compute_weather_score(samples_7d)
+
+    # # =====================================================
+    # # 2. KNN search
+    # # =====================================================
+
+    # nn = NearestNeighbors(
+    #     n_neighbors=K + 1,
+    #     algorithm='auto'
+    # )
+
+    # nn.fit(samples_7d)
+
+    # distances, indices = nn.kneighbors(samples_7d)
+
+    # # remove self neighbor
+    # distances = distances[:, 1:]
+    # indices = indices[:, 1:]
+
+    # # =====================================================
+    # # 3. graph construction
+    # # =====================================================
+
+    # edge_src = []
+    # edge_dst = []
+    # edge_weight = []
+
+    # for i in range(N):
+
+    #     local_dists = distances[i]
+    #     local_inds = indices[i]
+
+    #     # -------------------------------------------------
+    #     # adaptive epsilon
+    #     # -------------------------------------------------
+
+    #     dp = np.mean(local_dists)
+
+    #     epsilon = epsilon_scale * dp
+
+    #     score_i = weather_score[i]
+
+    #     # -------------------------------------------------
+    #     # candidate neighbors
+    #     # -------------------------------------------------
+
+    #     for dist, j in zip(local_dists, local_inds):
+
+    #         # remove overly distant neighbors
+    #         if dist > epsilon:
+    #             continue
+
+    #         score_j = weather_score[j]
+
+    #         delta = score_j - score_i
+
+    #         # =============================================
+    #         # progression weighting
+    #         # =============================================
+
+    #         if delta >= 0:
+
+    #             # forward progression
+    #             progression_factor = (
+    #                 1.0 - 0.35 * delta
+    #             )
+
+    #         else:
+
+    #             # backward penalty
+    #             progression_factor = (
+    #                 1.0 + 1.5 * abs(delta)
+    #             )
+
+    #         weight = dist * np.clip(progression_factor, 0.1, 5.0)
+
+    #         # =============================================
+    #         # append edge
+    #         # =============================================
+
+    #         edge_src.append(i)
+    #         edge_dst.append(j)
+    #         edge_weight.append(weight)
+
+    # # =====================================================
+    # # 4. return
+    # # =====================================================
+
+    # return (
+    #     np.array(edge_src, dtype=np.int32),
+    #     np.array(edge_dst, dtype=np.int32),
+    #     np.array(edge_weight, dtype=np.float32),
+    #     weather_score
+    # )
     N = samples_7d.shape[0]
-
-    # =====================================================
-    # 1. weather score
-    # =====================================================
-
     weather_score = compute_weather_score(samples_7d)
 
-    # =====================================================
-    # 2. KNN search
-    # =====================================================
-
-    nn = NearestNeighbors(
-        n_neighbors=K + 1,
-        algorithm='auto'
-    )
-
+    # 1. KNN Search (기존 방식 유지)
+    nn = NearestNeighbors(n_neighbors=K + 1, algorithm='kd_tree')
     nn.fit(samples_7d)
-
     distances, indices = nn.kneighbors(samples_7d)
+    distances, indices = distances[:, 1:], indices[:, 1:]
 
-    # remove self neighbor
-    distances = distances[:, 1:]
-    indices = indices[:, 1:]
+    edge_src, edge_dst, edge_weight = [], [], []
 
-    # =====================================================
-    # 3. graph construction
-    # =====================================================
-
-    edge_src = []
-    edge_dst = []
-    edge_weight = []
-
+    # 2. 그래프 생성 및 가중치 계산
     for i in range(N):
-
         local_dists = distances[i]
         local_inds = indices[i]
-
-        # -------------------------------------------------
-        # adaptive epsilon
-        # -------------------------------------------------
-
         dp = np.mean(local_dists)
-
         epsilon = epsilon_scale * dp
-
         score_i = weather_score[i]
 
-        # -------------------------------------------------
-        # candidate neighbors
-        # -------------------------------------------------
-
         for dist, j in zip(local_dists, local_inds):
-
-            # remove overly distant neighbors
-            if dist > epsilon:
-                continue
+            if dist > epsilon: continue # 엣지 생성 제한
 
             score_j = weather_score[j]
-
             delta = score_j - score_i
-
-            # =============================================
-            # progression weighting
-            # =============================================
-
-            if delta >= 0:
-
-                # forward progression
-                progression_factor = (
-                    1.0 - 0.35 * delta
-                )
-
-            else:
-
-                # backward penalty
-                progression_factor = (
-                    1.0 + 1.5 * abs(delta)
-                )
-
-            weight = dist * progression_factor
-
-            # =============================================
-            # append edge
-            # =============================================
+            progression_factor = (1.0 - 0.35 * delta) if delta >= 0 else (1.0 + 1.5 * abs(delta))
+            
+            # [수정] 가중치가 음수가 되거나 너무 커지지 않도록 클램핑
+            weight = dist * np.clip(progression_factor, 0.1, 5.0)
 
             edge_src.append(i)
             edge_dst.append(j)
             edge_weight.append(weight)
 
-    # =====================================================
-    # 4. return
-    # =====================================================
+    # 3. [핵심] 연결성 체크 및 단절 구간 강제 연결
+    graph = csr_matrix((edge_weight, (edge_src, edge_dst)), shape=(N, N))
+    n_comp, labels = connected_components(graph, directed=True, connection='weak')
+
+    if n_comp > 1:
+        # 단절된 컴포넌트들을 강제로 잇기 위해 각 컴포넌트의 대표 노드(centroid)를 찾아 연결
+        for comp_id in range(n_comp):
+            nodes_in_comp = np.where(labels == comp_id)[0]
+            # 인접 컴포넌트로 향하는 아주 약한 엣지 추가 (단절 방지용 브릿지)
+            target_comp = (comp_id + 1) % n_comp
+            target_node = np.where(labels == target_comp)[0][0]
+            source_node = nodes_in_comp[0]
+            
+            edge_src.append(source_node)
+            edge_dst.append(target_node)
+            edge_weight.append(100.0) # 매우 큰 가중치를 주어 최후의 수단으로만 사용하게 함
 
     return (
         np.array(edge_src, dtype=np.int32),

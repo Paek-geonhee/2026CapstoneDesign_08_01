@@ -169,7 +169,7 @@ class WeatheringPipeline:
             D, S, R = load_and_downsample(tex_paths[0], tex_paths[1], tex_paths[2], 128)
             X = normalize_features(combine_to_7d(D, S, R))
             
-            src, dst, wei, wea = Get_KNN_Graph_Adaptive(X)
+            src, dst, wei, wea = Get_KNN_Graph_Adaptive(X, 16)
             MDS_Dist = Get_MDS_graph(compute_geodesic_distance_matrix(src, dst, wei, X.shape[0]), 3)
             
             points, path = build_weathering_trajectory(MDS_Dist, src, dst, wei, np.argmin(wea), np.argmax(wea))

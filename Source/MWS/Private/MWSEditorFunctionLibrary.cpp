@@ -20,28 +20,70 @@
 
 #include "ImageUtils.h"
 
-bool UMWSEditorFunctionLibrary::ExportTextureToPNG(
-    UTexture2D* Texture,
-    const FString& FilePath)
+
+bool UMWSEditorFunctionLibrary::ExportTextureToPNG(UTexture2D* Texture, const FString& FilePath)
 {
-    if (!Texture)
+    if (!Texture) return false;
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("Texture=%p PlatformData=%p"),
+        Texture,
+        Texture->GetPlatformData());
+
+    if (Texture->GetPlatformData())
     {
+        UE_LOG(LogTemp, Warning,
+            TEXT("MipCount=%d"),
+            Texture->GetPlatformData()->Mips.Num());
+    }
+    // check for PlatformData=0000000000000000
+#if WITH_EDITOR
+    // 텍스처가 데이터를 가질 수 있도록 강제 동기화 상태 확인
+
+
+    checkf(Texture->GetPlatformData(), TEXT("No Platform data"));
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("Mips=%d"),
+        Texture->GetPlatformData()->Mips.Num());
+    // check for Mips=0
+
+    // Transient 텍스처에서 Mip[0] 데이터를 FImage로 직접 복사
+    FImage Image;
+
+    const int32 Width = Texture->Source.GetSizeX();
+    const int32 Height = Texture->Source.GetSizeY();
+
+    Image.Init(
+        Width,
+        Height,
+        ERawImageFormat::BGRA8,
+        EGammaSpace::sRGB);
+
+    TArray64<uint8> RawData;
+    Texture->Source.GetMipData(RawData, 0);
+
+    if (RawData.Num() != Width * Height * 4)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("Invalid source data. Expected=%d Actual=%lld"),
+            Width * Height * 4,
+            RawData.Num());
+
         return false;
     }
 
-#if WITH_EDITOR
+    FMemory::Memcpy(
+        Image.AsBGRA8().GetData(),
+        RawData.GetData(),
+        RawData.Num());
 
-    return UExporter::ExportToFile(
-        Texture,
-        nullptr,
+    return FImageUtils::SaveImageByExtension(
         *FilePath,
-        false,
-        false
-    ) != 0;
+        FImageView(Image));
+   // return true;
 #else
-
     return false;
-
 #endif
 }
 
@@ -72,8 +114,10 @@ bool UMWSEditorFunctionLibrary::RunWeatheringPipeline(
 {
     if (!BaseColor || !Specular || !Roughness)
     {
+        UE_LOG(LogTemp, Warning, TEXT("Texture Invalid"));
         return false;
     }
+
 
     const FString BaseColorPath =
         WorkingDirectory / TEXT("BaseColor.png");
@@ -83,6 +127,10 @@ bool UMWSEditorFunctionLibrary::RunWeatheringPipeline(
 
     const FString RoughnessPath =
         WorkingDirectory / TEXT("Roughness.png");
+
+    IFileManager::Get().Delete(*BaseColorPath);
+    IFileManager::Get().Delete(*SpecularPath);
+    IFileManager::Get().Delete(*RoughnessPath);
 
     const bool bBaseExport =
         ExportTextureToPNG(BaseColor, BaseColorPath);
@@ -95,6 +143,7 @@ bool UMWSEditorFunctionLibrary::RunWeatheringPipeline(
 
     if (!bBaseExport || !bSpecExport || !bRoughExport)
     {
+        UE_LOG(LogTemp, Warning, TEXT("Exported Invalid"));
         return false;
     }
 
@@ -110,6 +159,22 @@ bool UMWSEditorFunctionLibrary::RunWeatheringPipeline(
         *RoughnessPath,
         *FileName
     );
+
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("BC Exists=%d Size=%lld"),
+        IFileManager::Get().FileExists(*BaseColorPath),
+        IFileManager::Get().FileSize(*BaseColorPath));
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("SP Exists=%d Size=%lld"),
+        IFileManager::Get().FileExists(*SpecularPath),
+        IFileManager::Get().FileSize(*SpecularPath));
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("RG Exists=%d Size=%lld"),
+        IFileManager::Get().FileExists(*RoughnessPath),
+        IFileManager::Get().FileSize(*RoughnessPath));
 
     return ExecutePythonCommand(PythonCommand);
 }

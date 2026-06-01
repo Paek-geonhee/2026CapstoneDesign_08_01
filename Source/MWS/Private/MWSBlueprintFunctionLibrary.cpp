@@ -177,6 +177,89 @@ void UMWSBlueprintFunctionLibrary::InterpolateWeathering(
     }
 }
 
+TArray<float> UMWSBlueprintFunctionLibrary::LoadWeatheringTensorsFromFiles(const FString& DirectoryPath)
+{
+    TArray<FString> FoundFiles;
+    IFileManager::Get().FindFiles(FoundFiles, *DirectoryPath, TEXT("*.png"));
+
+    FString BasePath, SpecPath, RoughPath;
+
+    // 파일명 접미사 확인 로직
+    for (const FString& FileName : FoundFiles)
+    {
+        if (FileName.Contains(TEXT("_basecolor.png"))) BasePath = DirectoryPath / FileName;
+        else if (FileName.Contains(TEXT("_specular.png"))) SpecPath = DirectoryPath / FileName;
+        else if (FileName.Contains(TEXT("_roughness.png"))) RoughPath = DirectoryPath / FileName;
+    }
+
+    // 필수 파일 검증
+    if (BasePath.IsEmpty() || SpecPath.IsEmpty() || RoughPath.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ 필수 텍스처 파일(_basecolor, _specular, _roughness)을 찾을 수 없습니다."));
+        return TArray<float>();
+    }
+    UE_LOG(LogTemp, Warning, TEXT("❌ 필수 텍스처 파일(%s, %s, %s)를 찾았습니다."), *BasePath, *SpecPath, *RoughPath);
+
+    TArray<uint8> BaseRaw, SpecRaw, RoughRaw;
+    int32 W1, H1, W2, H2, W3, H3;
+
+    if (!LoadRawPNGData(BasePath, BaseRaw, W1, H1) ||
+        !LoadRawPNGData(SpecPath, SpecRaw, W2, H2) ||
+        !LoadRawPNGData(RoughPath, RoughRaw, W3, H3))
+    {
+        return TArray<float>();
+    }
+
+    // [신규] 해상도 일치 검증
+    if (W1 != W2 || W1 != W3 || H1 != H2 || H1 != H3)
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ 텍스처 해상도가 서로 다릅니다."));
+        return TArray<float>();
+    }
+
+    int32 PixelCount = W1 * H1;
+    TArray<float> Result;
+    Result.SetNumUninitialized(PixelCount * 7);
+
+    // [신규] 성능 최적화를 위한 병렬 처리 적용
+    ParallelFor(PixelCount, [&](int32 i)
+        {
+            const int32 PtrIdx = i * 4;
+            const int32 TensorIdx = i * 7;
+
+            // Base (BGRA -> RGB)
+            Result[TensorIdx + 0] = BaseRaw[PtrIdx + 2] / 255.0f; // R
+            Result[TensorIdx + 1] = BaseRaw[PtrIdx + 1] / 255.0f; // G
+            Result[TensorIdx + 2] = BaseRaw[PtrIdx + 0] / 255.0f; // B
+
+            // Spec (BGRA -> RGB)
+            Result[TensorIdx + 3] = SpecRaw[PtrIdx + 2] / 255.0f;
+            Result[TensorIdx + 4] = SpecRaw[PtrIdx + 1] / 255.0f;
+            Result[TensorIdx + 5] = SpecRaw[PtrIdx + 0] / 255.0f;
+
+            // Rough (Grayscale 가정: R, G, B 값이 동일하므로 G 채널 사용)
+            Result[TensorIdx + 6] = RoughRaw[PtrIdx + 1] / 255.0f;
+        });
+
+    return Result;
+}
+
+bool UMWSBlueprintFunctionLibrary::LoadRawPNGData(const FString& FilePath, TArray<uint8>& OutData, int32& OutWidth, int32& OutHeight)
+{
+    TArray<uint8> FileContent;
+    if (!FFileHelper::LoadFileToArray(FileContent, *FilePath)) return false;
+
+    IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+    TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
+
+    if (ImageWrapper.IsValid() && ImageWrapper->SetCompressed(FileContent.GetData(), FileContent.Num()))
+    {
+        OutWidth = ImageWrapper->GetWidth();
+        OutHeight = ImageWrapper->GetHeight();
+        return ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, OutData);
+    }
+    return false;
+}
 
 TArray<float> UMWSBlueprintFunctionLibrary::CombineTextureSources(
     UTexture2D* Base,
@@ -509,180 +592,93 @@ void UMWSBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
     UTexture2D*& OutSpecular,
     UTexture2D*& OutRoughness)
 {
-    OutBaseColor = nullptr;
-    OutSpecular = nullptr;
-    OutRoughness = nullptr;
-
     const int32 PixelCount = Width * Height;
+    if (Tensor7D.Num() != PixelCount * 7) return;
 
-    if (Tensor7D.Num() != PixelCount * 7)
-    {
-        UE_LOG(LogTemp, Error,
-            TEXT("Tensor size mismatch."));
-        return;
-    }
+    auto CreateTex = [&](bool bSRGB) {
+        UTexture2D* Tex = NewObject<UTexture2D>(GetTransientPackage(), NAME_None, RF_Transient);
+        Tex->AddToRoot();
 
-    // ------------------------------------------------------------
-    // Create Transient Textures
-    // ------------------------------------------------------------
+        // 1. SourceInit을 사용하여 엔진이 버퍼를 안전하게 할당하도록 함
+        Tex->Source.Init(Width, Height, 1, 1, TSF_BGRA8);
+        Tex->SRGB = bSRGB;
+        Tex->CompressionSettings = bSRGB ? TC_Default : TC_Masks;
+        return Tex;
+        };
 
-    OutBaseColor =
-        UTexture2D::CreateTransient(
-            Width,
-            Height,
-            PF_B8G8R8A8);
+    OutBaseColor = CreateTex(true);
+    OutSpecular = CreateTex(false);
+    OutRoughness = CreateTex(false);
 
-    OutSpecular =
-        UTexture2D::CreateTransient(
-            Width,
-            Height,
-            PF_B8G8R8A8);
+    // 2. Source 데이터를 직접 수정 (BulkData.Lock 대신 Mip.BulkData 사용)
+    auto WriteToTexture = [&](UTexture2D* Tex, int32 ChannelOffset, bool bIsRoughness) {
+        uint8* RawData = Tex->Source.LockMip(0); // 엔진이 보장하는 안전한 Lock
 
-    OutRoughness =
-        UTexture2D::CreateTransient(
-            Width,
-            Height,
-            PF_B8G8R8A8);
+        ParallelFor(PixelCount, [&](int32 i) {
+            int32 PIdx = i * 4;
+            if (bIsRoughness) {
+                uint8 R = uint8(FMath::Clamp(Tensor7D[i * 7 + 6] * 255.0f, 0.0f, 255.0f));
+                RawData[PIdx + 0] = RawData[PIdx + 1] = RawData[PIdx + 2] = R;
+            }
+            else {
+                int32 TIdx = i * 7 + ChannelOffset;
+                RawData[PIdx + 0] = uint8(FMath::Clamp(Tensor7D[TIdx + 2] * 255.0f, 0.0f, 255.0f));
+                RawData[PIdx + 1] = uint8(FMath::Clamp(Tensor7D[TIdx + 1] * 255.0f, 0.0f, 255.0f));
+                RawData[PIdx + 2] = uint8(FMath::Clamp(Tensor7D[TIdx + 0] * 255.0f, 0.0f, 255.0f));
+            }
+            RawData[PIdx + 3] = 255;
+            });
 
-    if (!OutBaseColor ||
-        !OutSpecular ||
-        !OutRoughness)
-    {
-        UE_LOG(LogTemp, Error,
-            TEXT("Failed to create transient textures."));
-        return;
-    }
+        Tex->Source.UnlockMip(0);
+        // [중요] 컴파일을 트리거하지 않고 에셋 상태만 갱신
+        Tex->PostEditChange();
+        };
 
-    // ------------------------------------------------------------
-    // Lock Bulk Data
-    // ------------------------------------------------------------
+    WriteToTexture(OutBaseColor, 0, false);
+    WriteToTexture(OutSpecular, 3, false);
+    WriteToTexture(OutRoughness, 0, true);
 
-    FTexture2DMipMap& BaseMip =
-        OutBaseColor->GetPlatformData()->Mips[0];
-
-    FTexture2DMipMap& SpecMip =
-        OutSpecular->GetPlatformData()->Mips[0];
-
-    FTexture2DMipMap& RoughMip =
-        OutRoughness->GetPlatformData()->Mips[0];
-
-    uint8* BaseData =
-        static_cast<uint8*>(
-            BaseMip.BulkData.Lock(LOCK_READ_WRITE));
-
-    uint8* SpecData =
-        static_cast<uint8*>(
-            SpecMip.BulkData.Lock(LOCK_READ_WRITE));
-
-    uint8* RoughData =
-        static_cast<uint8*>(
-            RoughMip.BulkData.Lock(LOCK_READ_WRITE));
-
-    // ------------------------------------------------------------
-    // Tensor → Texture Reconstruction
-    // ------------------------------------------------------------
-
-    ParallelFor(PixelCount, [&](int32 i)
+    auto LogTextureSource = [](const TCHAR* Name, UTexture2D* Tex)
         {
-            const int32 TensorIdx = i * 7;
-            const int32 PixelIdx = i * 4;
+            TArray64<uint8> RawData;
+            Tex->Source.GetMipData(RawData, 0);
 
-            // --------------------------------------------------------
-            // BaseColor
-            // --------------------------------------------------------
+            UE_LOG(LogTemp, Warning,
+                TEXT("%s RawData Num=%lld"),
+                Name,
+                RawData.Num());
 
-            const uint8 BR =
-                uint8(FMath::Clamp(
-                    Tensor7D[TensorIdx + 0] * 255.0f,
-                    0.0f,
-                    255.0f));
+            if (RawData.Num() >= 4)
+            {
+                UE_LOG(LogTemp, Warning,
+                    TEXT("%s Pixel0=%d %d %d %d"),
+                    Name,
+                    RawData[0],
+                    RawData[1],
+                    RawData[2],
+                    RawData[3]);
+            }
+        };
 
-            const uint8 BG =
-                uint8(FMath::Clamp(
-                    Tensor7D[TensorIdx + 1] * 255.0f,
-                    0.0f,
-                    255.0f));
+    LogTextureSource(TEXT("BC"), OutBaseColor);
+    LogTextureSource(TEXT("SP"), OutSpecular);
+    LogTextureSource(TEXT("RG"), OutRoughness);
+}
 
-            const uint8 BB =
-                uint8(FMath::Clamp(
-                    Tensor7D[TensorIdx + 2] * 255.0f,
-                    0.0f,
-                    255.0f));
+void UMWSBlueprintFunctionLibrary::FinalizeTextureUpdate(UTexture2D* Texture)
+{
+    UE_LOG(LogTemp, Warning,
+        TEXT("FinalizeTextureUpdate Texture=%p"),
+        Texture);
 
-            BaseData[PixelIdx + 0] = BB;
-            BaseData[PixelIdx + 1] = BG;
-            BaseData[PixelIdx + 2] = BR;
-            BaseData[PixelIdx + 3] = 255;
+    if (Texture)
+    {
+        Texture->UpdateResource();
 
-            // --------------------------------------------------------
-            // Specular
-            // --------------------------------------------------------
-
-            const uint8 SR =
-                uint8(FMath::Clamp(
-                    Tensor7D[TensorIdx + 3] * 255.0f,
-                    0.0f,
-                    255.0f));
-
-            const uint8 SG =
-                uint8(FMath::Clamp(
-                    Tensor7D[TensorIdx + 4] * 255.0f,
-                    0.0f,
-                    255.0f));
-
-            const uint8 SB =
-                uint8(FMath::Clamp(
-                    Tensor7D[TensorIdx + 5] * 255.0f,
-                    0.0f,
-                    255.0f));
-
-            SpecData[PixelIdx + 0] = SB;
-            SpecData[PixelIdx + 1] = SG;
-            SpecData[PixelIdx + 2] = SR;
-            SpecData[PixelIdx + 3] = 255;
-
-            // --------------------------------------------------------
-            // Roughness
-            // --------------------------------------------------------
-
-            const uint8 R =
-                uint8(FMath::Clamp(
-                    Tensor7D[TensorIdx + 6] * 255.0f,
-                    0.0f,
-                    255.0f));
-
-            RoughData[PixelIdx + 0] = R;
-            RoughData[PixelIdx + 1] = R;
-            RoughData[PixelIdx + 2] = R;
-            RoughData[PixelIdx + 3] = 255;
-        });
-
-    // ------------------------------------------------------------
-    // Unlock
-    // ------------------------------------------------------------
-
-    BaseMip.BulkData.Unlock();
-    SpecMip.BulkData.Unlock();
-    RoughMip.BulkData.Unlock();
-
-    // ------------------------------------------------------------
-    // Upload To GPU
-    // ------------------------------------------------------------
-
-    OutBaseColor->UpdateResource();
-    OutSpecular->UpdateResource();
-    OutRoughness->UpdateResource();
-
-    // ------------------------------------------------------------
-    // Texture Settings
-    // ------------------------------------------------------------
-
-    OutBaseColor->SRGB = true;
-    OutSpecular->SRGB = false;
-    OutRoughness->SRGB = false;
-
-    UE_LOG(LogTemp, Log,
-        TEXT("ReconstructTexturesFromTensor Success."));
+        UE_LOG(LogTemp, Warning,
+            TEXT("Resource=%p"),
+            Texture->GetResource());
+    }
 }
 
 void UMWSBlueprintFunctionLibrary::ApplyWeatheringTexturesToMesh(

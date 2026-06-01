@@ -134,6 +134,63 @@ struct GTObjTexture {
         }
     }
 
+    // [B] Threshold + Sigmoid: sharpens dirty/clean boundary.
+    // Values at or below `threshold` → 0; values above pushed toward 1 via sigmoid.
+    void applyThresholdSigmoid(float threshold, float steepness = 8.0f) {
+        auto proc = [&](std::vector<float>& ch) {
+            for (float& v : ch) {
+                if (v <= threshold) { v = 0.0f; continue; }
+                float t = (v - threshold) / (1.0f - threshold);
+                float s = 1.0f / (1.0f + std::exp(-steepness * (t - 0.5f)));
+                v = threshold + s * (1.0f - threshold);
+            }
+        };
+        proc(sd); proc(sp); proc(sr); proc(sh);
+    }
+
+    // [A] Fractal noise mask: smooth organic dirty/clean patches with no hard edges.
+    // Uses layered value noise (fractal/fbm) — no polygonal Voronoi artifacts.
+    // scale controls patch size: 2=very large blobs, 4=medium(default), 8=small texture.
+    void applyNoiseMask(int octaves, uint32_t seed, float strength, float scale = 4.0f) {
+        if (strength <= 0.0f || octaves <= 0) return;
+
+        // Deterministic integer hash → [0,1]
+        auto hashf = [](int x, int y, uint32_t s) -> float {
+            uint32_t n = ((uint32_t)(x * 1619 + y * 31337)) ^ s;
+            n = (n ^ (n >> 13u)) * 1274126177u;
+            return (float)(n & 0xffffu) / 65535.0f;
+        };
+        // Perlin's C2-continuous smootherstep
+        auto smooth = [](float t) -> float {
+            return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+        };
+        // Bilinear interpolated value noise
+        auto noise2D = [&](float x, float y, uint32_t s) -> float {
+            int   ix = (int)std::floor(x), iy = (int)std::floor(y);
+            float fx = x - (float)ix,      fy = y - (float)iy;
+            float sx = smooth(fx),          sy = smooth(fy);
+            float a  = hashf(ix,   iy,   s), b = hashf(ix+1, iy,   s);
+            float c  = hashf(ix,   iy+1, s), d = hashf(ix+1, iy+1, s);
+            return a + (b-a)*sx + (c-a)*sy + (a-b-c+d)*sx*sy;
+        };
+
+        int N = width * height;
+        for (int i = 0; i < N; i++) {
+            float px = (i % width)  / (float)width  * scale;
+            float py = (i / width)  / (float)height * scale;
+            // Fractal sum (fBm): multiple octaves, each halved amplitude
+            float val = 0.f, amp = 1.0f, freq = 1.0f, total = 0.0f;
+            for (int o = 0; o < octaves; o++) {
+                val   += noise2D(px * freq, py * freq, seed + (uint32_t)o * 1234u) * amp;
+                total += amp;
+                amp  *= 0.5f; freq *= 2.0f;
+            }
+            float noise = val / total;                  // [0,1] smooth organic field
+            float mult  = 1.0f - noise * strength;      // [1-strength, 1]
+            sd[i] *= mult; sp[i] *= mult; sr[i] *= mult; sh[i] *= mult;
+        }
+    }
+
     // Separable Gaussian blur (kernel [1,4,6,4,1]/16 × 2 passes).
     // Smooths per-iteration noise without shifting deposit position.
     void blur(int passes = 1) {
@@ -317,6 +374,28 @@ struct GTSimConfig {
 
     // One or more γ-ton types; each is emitted in proportion to its weight.
     std::vector<GTTonType>  ton_types = { GTTonType{} };
+
+    // [D] Probabilistic deposit: fraction of settling tons that actually leave a deposit.
+    // 1.0 = all tons deposit (default); 0.3 = only 30% deposit → sparse, patchy result.
+    float probabilistic_deposit = 1.0f;
+};
+
+// ── Post-process config (applied to GTObjTexture after all iterations) ────────
+struct GTPostProcessConfig {
+    // [D] Probabilistic deposit — forwarded into GTSimConfig before simulation
+    float probabilistic_deposit = 1.0f;   // 1.0=always, 0.3=30% chance
+
+    // [B] Threshold + Sigmoid — dirty/clean boundary sharpening
+    bool  useThreshold      = false;
+    float threshold         = 0.15f;
+    float sigmoid_steepness = 8.0f;
+
+    // [A] Fractal noise masking — smooth organic patch division (no polygonal edges)
+    bool     useNoiseMask     = false;
+    int      noise_octaves    = 4;      // detail levels: 2=smooth large blobs, 6=detailed
+    float    noise_strength   = 0.7f;   // max suppression [0=none, 1=fully suppress darkest areas]
+    float    noise_scale      = 4.0f;   // patch frequency: 2=huge patches, 8=small patches
+    uint32_t noise_seed       = 42;
 };
 
 // ── Cross-channel material rules (paper §3.4) ─────────────────────────────────
