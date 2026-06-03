@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -17,7 +17,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "Weathering")
     static FString GetTrajectorySaveDirectory(const FString& FileName);
 
-    /** .bin ÆÄÀÏÀ» ÀĞ¾î trajectory_samples µ¥ÀÌÅÍ¸¦ ·Î±×·Î Ãâ·Â */
+    /** .bin íŒŒì¼ì„ ì½ì–´ trajectory_samples ë°ì´í„°ë¥¼ ë¡œê·¸ë¡œ ì¶œë ¥ */
     UFUNCTION(BlueprintCallable, Category = "Weathering")
     static void LogWeatheringBinaryData(const FString& FilePath);
 
@@ -27,12 +27,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Weathering")
     static void InterpolateWeathering(
-        const TArray<float>& TexA_7d, // (H * W * 7) Å©±âÀÇ ÆòÅºÈ­µÈ ¹è¿­
-        const TArray<float>& TexB_7d, // (H * W * 7) Å©±âÀÇ ÆòÅºÈ­µÈ ¹è¿­
-        const TArray<float>& TrajectorySamples, // (T * 7) ¹ÙÀÌ³Ê¸®¿¡¼­ ·ÎµåÇÑ ±ËÀû µ¥ÀÌÅÍ
-        int32 T,                      // ±ËÀû ±æÀÌ
+        const TArray<float>& TexA_7d, // (H * W * 7) í¬ê¸°ì˜ í‰íƒ„í™”ëœ ë°°ì—´
+        const TArray<float>& TexB_7d, // (H * W * 7) í¬ê¸°ì˜ í‰íƒ„í™”ëœ ë°°ì—´
+        const TArray<float>& TrajectorySamples, // (T * 7) ë°”ì´ë„ˆë¦¬ì—ì„œ ë¡œë“œí•œ ê¶¤ì  ë°ì´í„°
+        int32 T,                      // ê¶¤ì  ê¸¸ì´
         float Alpha,
-        TArray<float>& OutResult);     // °á°ú ÀúÀå¿ë (H * W * 7)
+        TArray<float>& OutResult);     // ê²°ê³¼ ì €ì¥ìš© (H * W * 7)
     UFUNCTION(BlueprintCallable, Category = "Weathering")
     static TArray<float> LoadWeatheringTensorsFromFiles(const FString& DirectoryPath);
     UFUNCTION(BlueprintCallable, Category = "Weathering")
