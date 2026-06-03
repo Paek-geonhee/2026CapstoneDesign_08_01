@@ -24,6 +24,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "TextureResource.h"
 
+
 // Texture channel layout (PF_B8G8R8A8 / TSF_BGRA8):
 //   R = sd (dust density)   G = sp (pigment)
 //   B = sr (roughness)      A = sh (humidity)
@@ -37,7 +38,7 @@ UTexture2D* FGammaTonTextureBridge::CreateAndSaveTexture(
     const int H = SimTex.height;
 
     FString Safe    = ActorName.Replace(TEXT(" "), TEXT("_"));
-    FString PkgPath = TEXT("/Game/GammaTon/") + Safe + TEXT("/") + Safe + TEXT("_Dust");
+    FString PkgPath = TEXT("/Game/GammaTon/") + Safe + TEXT("_Dust");
     UPackage* Pkg   = CreatePackage(*PkgPath);
     Pkg->FullyLoad();
 
@@ -264,48 +265,83 @@ void FGammaTonTextureBridge::ApplyToComponent(
 {
     if (!Comp || !AgingTexture) return;
 
-    // Always read the current material from the component.
-    // If it's GammaTon's own MID, walk up to the parent to get the real base.
-    UMaterialInterface* OrigIface = Comp->GetMaterial(0);
-    if (UMaterialInstanceDynamic* ExistingMID = Cast<UMaterialInstanceDynamic>(OrigIface)) {
-        UTexture* Dummy = nullptr;
-        if (ExistingMID->GetTextureParameterValue(FMaterialParameterInfo(TEXT("AgingTex")), Dummy))
-            OrigIface = ExistingMID->Parent;
-    }
-
-    // Remove stale tags written by the old system.
-    if (AActor* Owner = Comp->GetOwner()) {
+    // Read from the component (respects per-actor material overrides in the level).
+    // Persist the original material path in an actor tag so re-runs don't pick up our own MID.
+    UMaterialInterface* OrigIface = nullptr;
+    {
         static const FString TagPrefix = TEXT("GammaTon_OrigMat=");
-        Owner->Tags.RemoveAll([&](const FName& T) { return T.ToString().StartsWith(TagPrefix); });
+        AActor* Owner = Comp->GetOwner();
+        if (Owner) {
+            for (const FName& Tag : Owner->Tags) {
+                FString S = Tag.ToString();
+                if (S.StartsWith(TagPrefix)) {
+                    OrigIface = LoadObject<UMaterialInterface>(nullptr, *S.Mid(TagPrefix.Len()));
+                    break;
+                }
+            }
+        }
+        if (!OrigIface) {
+            OrigIface = Comp->GetMaterial(0);
+            // Persist path so the next run skips a MID we applied
+            if (OrigIface && !Cast<UMaterialInstanceDynamic>(OrigIface) && Owner) {
+                FName NewTag = *(TagPrefix + OrigIface->GetPathName());
+                if (!Owner->Tags.Contains(NewTag))
+                    Owner->Tags.Add(NewTag);
+            }
+        }
     }
 
     UMaterial* OrigBase = nullptr;
-    if (auto* M  = Cast<UMaterial>(OrigIface))             OrigBase = M;
+    if (auto* M  = Cast<UMaterial>(OrigIface))            OrigBase = M;
     else if (auto* MI = Cast<UMaterialInstance>(OrigIface)) OrigBase = MI->GetMaterial();
 
-    FString Safe     = ActorName.Replace(TEXT(" "), TEXT("_"));
-    FString MatPkg   = TEXT("/Game/GammaTon/") + Safe + TEXT("/") + Safe + TEXT("_DustMat");
-    FString MatRef   = MatPkg + TEXT(".") + Safe + TEXT("_DustMat");
+    FString Safe   = ActorName.Replace(TEXT(" "), TEXT("_"));
+    FString MatPkg = TEXT("/Game/GammaTon/") + Safe + TEXT("_DustMat");
+    FString MatRef = MatPkg + TEXT(".") + Safe + TEXT("_DustMat");
     FName   MatFName = *(Safe + TEXT("_DustMat"));
 
-    // Always delete the old DustMat and recreate from the current base material.
-    if (UMaterial* Old = LoadObject<UMaterial>(nullptr, *MatRef))
-        Old->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+    // Cache check: valid if DustMat has AgingTex, DustTexture AND a wired BaseColor.
+    // Stale caches (missing DustTexture) trigger a regeneration for multi-texture blending.
+    UMaterial* DustMat = LoadObject<UMaterial>(nullptr, *MatRef);
+    if (DustMat) {
+        bool bHasAgingTex = false, bHasDustTex = false, bHasDustVis = false;
+        for (UMaterialExpression* Expr : DustMat->GetExpressionCollection().Expressions) {
+            if (auto* P = Cast<UMaterialExpressionTextureSampleParameter2D>(Expr)) {
+                if (P->ParameterName == TEXT("AgingTex"))    bHasAgingTex = true;
+                if (P->ParameterName == TEXT("DustTexture")) bHasDustTex  = true;
+            }
+            if (auto* S = Cast<UMaterialExpressionScalarParameter>(Expr))
+                if (S->ParameterName == TEXT("DustVisibility")) bHasDustVis = true;
+        }
 
-    UPackage* Pkg = CreatePackage(*MatPkg);
-    Pkg->FullyLoad();
-    UMaterial* DustMat = nullptr;
-    if (OrigBase) {
-        OrigBase->GetEditorOnlyData();
-        DustMat = DuplicateObject<UMaterial>(OrigBase, Pkg, MatFName);
+        UMaterialEditorOnlyData* CachedEd = DustMat->GetEditorOnlyData();
+        bool bHasBaseColor = CachedEd && (CachedEd->BaseColor.Expression != nullptr);
+
+        if (!bHasAgingTex || !bHasDustTex || !bHasDustVis || !bHasBaseColor) {
+            UE_LOG(LogTemp, Log, TEXT("[GammaTon] Cached DustMat outdated — regenerating"));
+            DustMat = nullptr;
+        }
     }
-    if (!DustMat)
-        DustMat = NewObject<UMaterial>(Pkg, MatFName, RF_Public | RF_Standalone | RF_Transactional);
-    DustMat->SetFlags(RF_Public | RF_Standalone | RF_Transactional);
-    InjectAgingOverlay(DustMat, AtlasUVChannel);
-    Pkg->MarkPackageDirty();
-    FAssetRegistryModule::AssetCreated(DustMat);
-    UE_LOG(LogTemp, Log, TEXT("[GammaTon] Created DustMat for %s"), *ActorName);
+
+    if (!DustMat) {
+        UPackage* Pkg = CreatePackage(*MatPkg);
+        Pkg->FullyLoad();
+        if (OrigBase) {
+            // Force-initialize UMaterialEditorOnlyData before duplicating.
+            // UE4-format assets create this lazily; without this call the
+            // duplicate's GetEditorOnlyData() returns an empty object with
+            // no expressions, leaving OrigColor null after duplication.
+            OrigBase->GetEditorOnlyData();
+            DustMat = DuplicateObject<UMaterial>(OrigBase, Pkg, MatFName);
+        } else {
+            DustMat = NewObject<UMaterial>(Pkg, MatFName, RF_Public | RF_Standalone | RF_Transactional);
+        }
+        DustMat->SetFlags(RF_Public | RF_Standalone | RF_Transactional);
+        InjectAgingOverlay(DustMat, AtlasUVChannel);
+        Pkg->MarkPackageDirty();
+        FAssetRegistryModule::AssetCreated(DustMat);
+        UE_LOG(LogTemp, Log, TEXT("[GammaTon] Created DustMat for %s"), *ActorName);
+    }
 
     UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(DustMat, Comp);
 
@@ -400,37 +436,192 @@ void FGammaTonTextureBridge::ApplyToComponent(
 // ── ExportManifoldPNGs helpers ────────────────────────────────────────────────
 
 // Find a texture in a material by keyword list (same strategy as FindBaseColorTex).
-static UTexture2D* sManifoldFindTex(UMaterialInterface* Mat,
-                                    std::initializer_list<const TCHAR*> Keywords)
+//static UTexture2D* sManifoldFindTex(UMaterialInterface* Mat,
+//                                    std::initializer_list<const TCHAR*> Keywords)
+//{
+//    if (!Mat) return nullptr;
+//    UMaterial* Base = nullptr;
+//    if (auto* M  = Cast<UMaterial>(Mat))            Base = M;
+//    else if (auto* MI = Cast<UMaterialInstance>(Mat)) Base = MI->GetMaterial();
+//
+//    auto Matches = [&](const FString& Name) {
+//        for (const TCHAR* Kw : Keywords)
+//            if (Name.Contains(Kw, ESearchCase::IgnoreCase)) return true;
+//        return false;
+//    };
+//
+//    // Pass 1 — texture parameter API
+//    {
+//        TArray<FMaterialParameterInfo> Infos; TArray<FGuid> Guids;
+//        Mat->GetAllTextureParameterInfo(Infos, Guids);
+//        for (auto& P : Infos)
+//            if (Matches(P.Name.ToString())) {
+//                UTexture* T = nullptr;
+//                if (Mat->GetTextureParameterValue(P, T))
+//                    if (auto* T2D = Cast<UTexture2D>(T)) return T2D;
+//            }
+//    }
+//    // Pass 2 — expression collection
+//    if (Base)
+//        for (UMaterialExpression* Expr : Base->GetExpressionCollection().Expressions)
+//            if (auto* P = Cast<UMaterialExpressionTextureSampleParameter2D>(Expr))
+//                if (Matches(P->ParameterName.ToString()))
+//                    if (auto* T2D = Cast<UTexture2D>(P->Texture)) return T2D;
+//
+//    return nullptr;
+//}
+static UTexture2D* sManifoldFindTex(
+    UMaterialInterface* Mat,
+    std::initializer_list<const TCHAR*> Keywords)
 {
-    if (!Mat) return nullptr;
+    if (!Mat)
+        return nullptr;
+
     UMaterial* Base = nullptr;
-    if (auto* M  = Cast<UMaterial>(Mat))            Base = M;
-    else if (auto* MI = Cast<UMaterialInstance>(Mat)) Base = MI->GetMaterial();
 
-    auto Matches = [&](const FString& Name) {
-        for (const TCHAR* Kw : Keywords)
-            if (Name.Contains(Kw, ESearchCase::IgnoreCase)) return true;
-        return false;
-    };
+    if (auto* M = Cast<UMaterial>(Mat))
+        Base = M;
+    else if (auto* MI = Cast<UMaterialInstance>(Mat))
+        Base = MI->GetMaterial();
 
-    // Pass 1 — texture parameter API
-    {
-        TArray<FMaterialParameterInfo> Infos; TArray<FGuid> Guids;
-        Mat->GetAllTextureParameterInfo(Infos, Guids);
-        for (auto& P : Infos)
-            if (Matches(P.Name.ToString())) {
-                UTexture* T = nullptr;
-                if (Mat->GetTextureParameterValue(P, T))
-                    if (auto* T2D = Cast<UTexture2D>(T)) return T2D;
+    auto Matches = [&](const FString& Name)
+        {
+            for (const TCHAR* Kw : Keywords)
+            {
+                if (Name.Contains(Kw, ESearchCase::IgnoreCase))
+                    return true;
             }
-    }
-    // Pass 2 — expression collection
+            return false;
+        };
+
+    // ---------------------------------------------------------------------
+    // Pass 1 : Material Input Expression 직접 추적
+    // ---------------------------------------------------------------------
+
     if (Base)
-        for (UMaterialExpression* Expr : Base->GetExpressionCollection().Expressions)
-            if (auto* P = Cast<UMaterialExpressionTextureSampleParameter2D>(Expr))
+    {
+        if (UMaterialEditorOnlyData* Ed = Base->GetEditorOnlyData())
+        {
+            if (auto* P = Cast<UMaterialExpressionTextureSampleParameter2D>(
+                Ed->BaseColor.Expression))
+            {
+                UTexture* T = nullptr;
+
+                if (Mat->GetTextureParameterValue(
+                    FMaterialParameterInfo(P->ParameterName), T))
+                {
+                    if (auto* T2D = Cast<UTexture2D>(T))
+                        return T2D;
+                }
+
+                if (auto* T2D = Cast<UTexture2D>(P->Texture))
+                    return T2D;
+            }
+
+            if (auto* S = Cast<UMaterialExpressionTextureSample>(
+                Ed->BaseColor.Expression))
+            {
+                if (auto* T2D = Cast<UTexture2D>(S->Texture))
+                    return T2D;
+            }
+        }
+    }
+
+    //// ---------------------------------------------------------------------
+    //// Pass 2 : Texture Parameter API
+    //// ---------------------------------------------------------------------
+
+    {
+        TArray<FMaterialParameterInfo> Infos;
+        TArray<FGuid> Guids;
+
+        Mat->GetAllTextureParameterInfo(Infos, Guids);
+
+        for (const FMaterialParameterInfo& P : Infos)
+        {
+            if (!Matches(P.Name.ToString()))
+                continue;
+
+            UTexture* T = nullptr;
+
+            if (Mat->GetTextureParameterValue(P, T))
+            {
+                if (auto* T2D = Cast<UTexture2D>(T))
+                    return T2D;
+            }
+        }
+    }
+
+    //// ---------------------------------------------------------------------
+    //// Pass 3~6 : Expression Collection 검색
+    //// ---------------------------------------------------------------------
+
+    if (Base)
+    {
+        const TArray<UMaterialExpression*>& Exprs =
+            Base->GetExpressionCollection().Expressions;
+
+        // Pass 3 : Parameter + 이름 일치
+
+        for (UMaterialExpression* Expr : Exprs)
+        {
+            if (auto* P =
+                Cast<UMaterialExpressionTextureSampleParameter2D>(Expr))
+            {
                 if (Matches(P->ParameterName.ToString()))
-                    if (auto* T2D = Cast<UTexture2D>(P->Texture)) return T2D;
+                {
+                    if (auto* T2D = Cast<UTexture2D>(P->Texture))
+                        return T2D;
+                }
+            }
+        }
+
+        // Pass 4 : TextureSample 이름 일치
+
+        for (UMaterialExpression* Expr : Exprs)
+        {
+            if (auto* S =
+                Cast<UMaterialExpressionTextureSample>(Expr))
+            {
+                if (S->Texture &&
+                    Matches(S->Texture->GetName()))
+                {
+                    if (auto* T2D = Cast<UTexture2D>(S->Texture))
+                        return T2D;
+                }
+            }
+        }
+
+        // Pass 5 : 아무 TextureSampleParameter2D
+
+        for (UMaterialExpression* Expr : Exprs)
+        {
+            if (auto* P =
+                Cast<UMaterialExpressionTextureSampleParameter2D>(Expr))
+            {
+                if (auto* T2D = Cast<UTexture2D>(P->Texture))
+                    return T2D;
+            }
+        }
+
+        // Pass 6 : 아무 TextureSample
+
+        for (UMaterialExpression* Expr : Exprs)
+        {
+            if (auto* S =
+                Cast<UMaterialExpressionTextureSample>(Expr))
+            {
+                if (auto* T2D = Cast<UTexture2D>(S->Texture))
+                    return T2D;
+            }
+        }
+    }
+
+    UE_LOG(
+        LogTemp,
+        Warning,
+        TEXT("[GammaTon] sManifoldFindTex failed : %s"),
+        *Mat->GetName());
 
     return nullptr;
 }
@@ -513,7 +704,7 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
 
     // ── Output directory ──────────────────────────────────────────────────────
     FString Safe    = ActorName.Replace(TEXT(" "), TEXT("_"));
-    FString SaveDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GammaTon"), Safe, TEXT("Manifold"));
+    FString SaveDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GammaTon"), TEXT("Manifold"));
     IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
     if (!PF.DirectoryExists(*SaveDir)) PF.CreateDirectoryTree(*SaveDir);
 
@@ -589,7 +780,7 @@ FString FGammaTonTextureBridge::ExportManifoldPNGs(
     UTexture2D* OrigRough= sManifoldFindTex(MatIface,
         { TEXT("Roughness"), TEXT("Rough"), TEXT("Gloss") });
 
-    UE_LOG(LogTemp, Log,
+    UE_LOG(LogTemp, Warning,
         TEXT("[GammaTon] Manifold textures for '%s':\n")
         TEXT("  BaseColor=%s  Specular=%s  Roughness=%s\n")
         TEXT("  DustTexture=%s  PigmentTexture=%s"),
