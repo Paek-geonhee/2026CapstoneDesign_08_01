@@ -15,9 +15,12 @@ public:
     void SetSources(const TArray<GTGammaSource>& InSources);
     void SetVisible(bool bInVisible);
 
+    // 지정 위치에 반경 구를 Duration초 동안 표시
+    void ShowOccluderRadius(const FVector& Center, float Radius, float Duration = 3.0f);
+
     // FTickableEditorObject
     virtual void    Tick(float DeltaTime) override;
-    virtual bool    IsTickable() const override { return bVisible; }
+    virtual bool    IsTickable() const override { return bVisible || OccluderTimeLeft_ > 0.f; }
     virtual TStatId GetStatId() const override;
 
 private:
@@ -30,4 +33,8 @@ private:
 
     TArray<GTGammaSource> Sources_;
     bool                  bVisible = false;
+
+    FVector OccluderCenter_  = FVector::ZeroVector;
+    float   OccluderRadius_  = 0.f;
+    float   OccluderTimeLeft_ = 0.f;
 };

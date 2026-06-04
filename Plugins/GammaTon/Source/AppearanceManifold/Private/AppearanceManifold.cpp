@@ -37,7 +37,7 @@ void FAppearanceManifoldModule::ShutdownModule()
 FString FAppearanceManifoldModule::GetPluginDirectory() const
 {
     TSharedPtr<IPlugin> Plugin =
-        IPluginManager::Get().FindPlugin(TEXT("AppearanceManifold"));
+        IPluginManager::Get().FindPlugin(TEXT("GammaTon"));
 
     return Plugin.IsValid()
         ? Plugin->GetBaseDir()

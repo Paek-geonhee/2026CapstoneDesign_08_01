@@ -15,21 +15,37 @@ TStatId FGammaTonSourceVisualizer::GetStatId() const
     RETURN_QUICK_DECLARE_CYCLE_STAT(FGammaTonSourceVisualizer, STATGROUP_Tickables);
 }
 
-void FGammaTonSourceVisualizer::Tick(float /*DeltaTime*/)
+void FGammaTonSourceVisualizer::ShowOccluderRadius(const FVector& Center, float Radius, float Duration)
+{
+    OccluderCenter_   = Center;
+    OccluderRadius_   = Radius;
+    OccluderTimeLeft_ = Duration;
+}
+
+void FGammaTonSourceVisualizer::Tick(float DeltaTime)
 {
     if (!GEditor) return;
     UWorld* W = GEditor->GetEditorWorldContext().World();
     if (!W) return;
 
-    for (const GTGammaSource& S : Sources_)
-    {
-        switch (S.type)
+    if (bVisible) {
+        for (const GTGammaSource& S : Sources_)
         {
-        case GTSourceType::AREA_TOP:    DrawAreaTop(W, S);    break;
-        case GTSourceType::DIRECTIONAL: DrawDirectional(W, S); break;
-        case GTSourceType::POINT:       DrawPoint(W, S);       break;
-        case GTSourceType::ENVIRONMENT: DrawEnvironment(W, S); break;
+            switch (S.type)
+            {
+            case GTSourceType::AREA_TOP:    DrawAreaTop(W, S);     break;
+            case GTSourceType::DIRECTIONAL: DrawDirectional(W, S); break;
+            case GTSourceType::POINT:       DrawPoint(W, S);       break;
+            case GTSourceType::ENVIRONMENT: DrawEnvironment(W, S); break;
+            }
         }
+    }
+
+    // Occluder 반경 구 — 카운트다운이 남아있는 동안 매 프레임 그림
+    if (OccluderTimeLeft_ > 0.f) {
+        OccluderTimeLeft_ -= DeltaTime;
+        DrawDebugSphere(W, OccluderCenter_, OccluderRadius_, 32,
+            FColor(80, 200, 255), false, -1.0f, 0, 1.5f);
     }
 }
 

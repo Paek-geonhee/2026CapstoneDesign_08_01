@@ -182,7 +182,8 @@ bool FGammaTonMeshBridge::ExtractMesh(UStaticMeshComponent* Comp, GTMesh& OutMes
 }
 
 FGTSceneData FGammaTonMeshBridge::BuildScene(
-    const TArray<AActor*>&            Actors,
+    const TArray<AActor*>&            TargetActors,
+    const TArray<AActor*>&            OccluderActors,
     const TArray<GTGammaReflectance>& Reflectances,
     const TArray<GTMaterialProps>&    InitialMaterials,
     GTRayIntersector&                 OutIntersector,
@@ -190,8 +191,9 @@ FGTSceneData FGammaTonMeshBridge::BuildScene(
 {
     FGTSceneData Scene;
 
-    for (int32 ai = 0; ai < Actors.Num(); ai++) {
-        AActor* Actor = Actors[ai];
+    // ── Target actors: full weathering (texture + surfel + component output) ──
+    for (int32 ai = 0; ai < TargetActors.Num(); ai++) {
+        AActor* Actor = TargetActors[ai];
         if (!Actor) continue;
         UStaticMeshComponent* SMC = Actor->FindComponentByClass<UStaticMeshComponent>();
         if (!SMC) continue;
@@ -202,7 +204,6 @@ FGTSceneData FGammaTonMeshBridge::BuildScene(
 
         int GeomId = (int)Scene.meshes.size();
         // Bounds-check: callers may pass empty arrays when per-actor settings are unused.
-        // Default-constructed GTGammaReflectance / GTMaterialProps = no weathering bias.
         GTGammaReflectance Refl    = (ai < Reflectances.Num())    ? Reflectances[ai]    : GTGammaReflectance{};
         GTMaterialProps    InitMat = (ai < InitialMaterials.Num()) ? InitialMaterials[ai] : GTMaterialProps{};
 
@@ -217,8 +218,37 @@ FGTSceneData FGammaTonMeshBridge::BuildScene(
         Scene.textures.emplace_back(TextureSize, TextureSize);
         Scene.meshes.push_back(std::move(Mesh));
         Scene.components.Add(SMC);
-        Scene.actorNames.Add(Actor->GetName());
+        // Label_GUID8: human-readable label + first 8 chars of persistent GUID for uniqueness.
+        FString Label = Actor->GetActorLabel() + TEXT("_") + Actor->GetActorGuid().ToString().Left(8);
+        Scene.actorNames.Add(Label);
         Scene.atlasUVChannels.Add(AtlasChannel);
+    }
+
+    Scene.NumTargetMeshes = (int32)Scene.meshes.size();
+
+    // ── Occluder actors: ray intersection only — no texture, no output ──
+    // Occluder geom_ids start at NumTargetMeshes, so the existing guard
+    // `hit.geom_id < textures_->size()` in GTSimulator naturally skips deposits.
+    for (AActor* Actor : OccluderActors) {
+        if (!Actor) continue;
+        UStaticMeshComponent* SMC = Actor->FindComponentByClass<UStaticMeshComponent>();
+        if (!SMC) continue;
+
+        GTMesh Mesh;
+        int AtlasChannel = 0;
+        if (!ExtractMesh(SMC, Mesh, AtlasChannel)) continue;
+
+        int GeomId = (int)Scene.meshes.size();
+        OutIntersector.addMesh(Mesh);
+
+        auto SurfelVec = GTGenerateSurfels(Mesh, GTGammaReflectance{}, GeomId);
+        for (auto& s : SurfelVec) {
+            s.is_occluder = true;
+            Scene.surfels.push_back(s);
+        }
+
+        Scene.meshes.push_back(std::move(Mesh));
+        // Occluder meshes intentionally omitted from textures / components / actorNames
     }
 
     if (!Scene.meshes.empty()) {

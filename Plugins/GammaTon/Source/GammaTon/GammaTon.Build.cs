@@ -24,14 +24,14 @@ public class GammaTon : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core", "CoreUObject", "Engine",
-			"RenderCore", "RHI"
+			"RenderCore", "RHI",
+			"AppFramework"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
 			"Slate", "SlateCore",
 			"InputCore",
 			"EditorFramework", "UnrealEd",
-			"AppFramework",
 			"ToolMenus",
 			"StaticMeshDescription",
 			"MeshDescription",

@@ -52,7 +52,7 @@ def export_to_unreal_runtime_data(trajectory_samples, filepath):
 
 class WeatheringPipeline:
     # 저장 경로를 OS 표준으로 설정 (언리얼 API 호출 없음)
-    _SAVE_PATH = os.path.join(unreal.Paths.project_content_dir(), "_WeatheringResults", ".npy")
+    _SAVE_PATH = os.path.join(unreal.Paths.project_content_dir(), "WeatheringResults", ".npy")
     _callback_registered = False
     _callback_handle = None
 

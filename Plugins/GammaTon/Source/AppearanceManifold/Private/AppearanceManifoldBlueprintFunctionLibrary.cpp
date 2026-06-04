@@ -11,111 +11,44 @@
 
 #include "Kismet/KismetSystemLibrary.h"
 #include "IImageWrapper.h"
-#include "Misc/FileHelper.h"
 #include "IImageWrapperModule.h"
 #include "Modules/ModuleManager.h"
 
 #include "Async/ParallelFor.h"
+
+#include "Engine/Texture2D.h"
+#include "Rendering/Texture2DResource.h"
+#include "RHI.h"
+#include "RHICommandList.h"
+
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/BufferArchive.h"
 #include "Serialization/MemoryReader.h"
 
+#if WITH_EDITOR
+#include "Exporters/Exporter.h"
+#include "IPythonScriptPlugin.h"
+#endif
 struct FWeatheringSample {
     float Data[7];
+
 };
+
+//struct alignas(32) FWeatheringSample {
+//    float Data[8];
+//
+//    FWeatheringSample() {
+//        Data[7] = 0;
+//    }
+//};
 
 FString UAppearanceManifoldBlueprintFunctionLibrary::GetTrajectorySaveDirectory(const FString& FileName)
 {
-    
-    FString Directory = FPaths::Combine(FPaths::ProjectContentDir(),TEXT("_WeatheringResults"));
+    FString Directory = FPaths::Combine(FPaths::ProjectContentDir(),TEXT("WeatheringResults"));
     IFileManager::Get().MakeDirectory(*Directory, true);
     return FPaths::Combine(Directory, FileName + TEXT(".bin"));
-}
-
-void UAppearanceManifoldBlueprintFunctionLibrary::LogWeatheringBinaryData(const FString& FilePath)
-{
-    TArray<uint8> FileData;
-    if (!FFileHelper::LoadFileToArray(FileData, *FilePath))
-    {
-        UE_LOG(LogTemp, Error, TEXT("❌ Failed to load file: %s"), *FilePath);
-        return;
-    }
-
-
-    if (FileData.Num() < 4)
-    {
-        UE_LOG(LogTemp, Error, TEXT("❌ File is too small to contain header."));
-        return;
-    }
-
-    int32 T = *reinterpret_cast<int32*>(FileData.GetData());
-
-
-    float* SamplesData = reinterpret_cast<float*>(FileData.GetData() + 4);
-
-    UE_LOG(LogTemp, Log, TEXT("✅ Binary Load Success. Trajectory Length (T): %d"), T);
-
-    int32 NumToPrint = FMath::Min(5, T);
-    for (int32 i = 0; i < NumToPrint; ++i)
-    {
-        float* row = &SamplesData[i * 7];
-        UE_LOG(LogTemp, Log, TEXT("   Point %d: [%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f]"),
-            i, row[0], row[1], row[2], row[3], row[4], row[5], row[6]);
-    }
-
-    if (T > 5)
-    {
-        float* last = &SamplesData[(T - 1) * 7];
-        UE_LOG(LogTemp, Log, TEXT("   ... Last Point: [%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f]"),
-            last[0], last[1], last[2], last[3], last[4], last[5], last[6]);
-    }
-}
-
-
-FString UAppearanceManifoldBlueprintFunctionLibrary::SaveFloatArrayToBinary(
-    const TArray<float>& Data,
-    const FString& ActorName,
-    int32 Index)
-{
-    const FString SaveDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("TensorCache"));
-
-    IFileManager::Get().MakeDirectory(*SaveDirectory, true);
-
-    const FString FileName = FString::Printf(TEXT("%s_%d.bin"), *ActorName, Index);
-
-    const FString FullPath = FPaths::Combine(SaveDirectory, FileName);
-
-    FBufferArchive Archive;
-    Archive << const_cast<TArray<float>&>(Data);
-
-    const bool bSaved = FFileHelper::SaveArrayToFile(Archive, *FullPath);
-
-    Archive.FlushCache();
-    Archive.Empty();
-
-    return bSaved ? FullPath : FString();
-}
-
-bool UAppearanceManifoldBlueprintFunctionLibrary::LoadFloatArrayFromBinary(
-    const FString& FilePath,
-    TArray<float>& OutData)
-{
-    TArray<uint8> BinaryData;
-
-    if (!FFileHelper::LoadFileToArray(BinaryData, *FilePath))
-    {
-        return false;
-    }
-
-    FMemoryReader Reader(BinaryData, true);
-
-    Reader.Seek(0);
-    Reader << OutData;
-    Reader.Close();
-
-    return true;
 }
 
 TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::LoadWeatheringBinaryData(const FString& FilePath, int32& OutT)
@@ -380,14 +313,9 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
         return EmptyResult;
     }
 
-    const ETextureSourceFormat BaseFormat =
-        Base->Source.GetFormat();
-
-    const ETextureSourceFormat SpecFormat =
-        Spec->Source.GetFormat();
-
-    const ETextureSourceFormat RoughFormat =
-        Rough->Source.GetFormat();
+    const ETextureSourceFormat BaseFormat = Base->Source.GetFormat();
+    const ETextureSourceFormat SpecFormat = Spec->Source.GetFormat();
+    const ETextureSourceFormat RoughFormat = Rough->Source.GetFormat();
 
     const int32 PixelCount = Width * Height;
 
@@ -405,13 +333,9 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
 
     ParallelFor(PixelCount, [&](int32 i)
         {
-            float BR = 0.0f;
-            float BG = 0.0f;
-            float BB = 0.0f;
+            float BR = 0.0f; float BG = 0.0f; float BB = 0.0f;
 
-            float SR = 0.0f;
-            float SG = 0.0f;
-            float SB = 0.0f;
+            float SR = 0.0f; float SG = 0.0f; float SB = 0.0f;
 
             float Roughness = 0.0f;
 
@@ -423,8 +347,7 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
             {
             case TSF_BGRA8:
             {
-                const uint8* Ptr =
-                    BaseRaw.GetData() + i * 4;
+                const uint8* Ptr = BaseRaw.GetData() + i * 4;
 
                 BB = Ptr[0] / 255.0f;
                 BG = Ptr[1] / 255.0f;
@@ -434,12 +357,8 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
 
             case TSF_G8:
             {
-                const float V =
-                    BaseRaw[i] / 255.0f;
-
-                BR = V;
-                BG = V;
-                BB = V;
+                const float V = BaseRaw[i] / 255.0f;
+                BR = BG = BB = V;
                 break;
             }
 
@@ -455,8 +374,7 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
             {
             case TSF_BGRA8:
             {
-                const uint8* Ptr =
-                    SpecRaw.GetData() + i * 4;
+                const uint8* Ptr = SpecRaw.GetData() + i * 4;
 
                 SB = Ptr[0] / 255.0f;
                 SG = Ptr[1] / 255.0f;
@@ -466,12 +384,8 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
 
             case TSF_G8:
             {
-                const float V =
-                    SpecRaw[i] / 255.0f;
-
-                SR = V;
-                SG = V;
-                SB = V;
+                const float V = SpecRaw[i] / 255.0f;
+                SR = SG = SB = V;
                 break;
             }
 
@@ -487,15 +401,13 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
             {
             case TSF_G8:
             {
-                Roughness =
-                    RoughRaw[i] / 255.0f;
+                Roughness = RoughRaw[i] / 255.0f;
                 break;
             }
 
             case TSF_BGRA8:
             {
-                Roughness =
-                    RoughRaw[i * 4 + 2] / 255.0f;
+                Roughness = RoughRaw[i * 4 + 2] / 255.0f;
                 break;
             }
 
@@ -528,6 +440,80 @@ TArray<float> UAppearanceManifoldBlueprintFunctionLibrary::CombineTextureSources
     return Result;
 }
 
+FString UAppearanceManifoldBlueprintFunctionLibrary::SaveFloatArrayToBinary(
+    const TArray<float>& Data,
+    const FString& ActorName,
+    int32 Index)
+{
+    const FString SaveDirectory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("TensorCache"));;
+
+    IFileManager::Get().MakeDirectory(*SaveDirectory, true);
+
+    const FString FileName = FString::Printf(TEXT("%s_%d.bin"), *ActorName, Index);
+
+    const FString FullPath = FPaths::Combine(SaveDirectory, FileName);
+
+    FBufferArchive Archive;
+    Archive << const_cast<TArray<float>&>(Data);
+
+    const bool bSaved = FFileHelper::SaveArrayToFile(Archive, *FullPath);
+
+    Archive.FlushCache();
+    Archive.Empty();
+
+    return bSaved ? FullPath : FString();
+}
+
+bool UAppearanceManifoldBlueprintFunctionLibrary::LoadFloatArrayFromBinary(
+    const FString& FilePath,
+    TArray<float>& OutData)
+{
+    TArray<uint8> BinaryData;
+
+    if (!FFileHelper::LoadFileToArray(BinaryData, *FilePath))
+    {
+        return false;
+    }
+
+    FMemoryReader Reader(BinaryData, true);
+
+    Reader.Seek(0);
+    Reader << OutData;
+    Reader.Close();
+
+    return true;
+}
+
+FString UAppearanceManifoldBlueprintFunctionLibrary::GetTensorCacheFilePath(
+    const FString& ActorName,
+    int32 Index,
+    bool& bFileFound)
+{
+    const FString SaveDirectory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("TensorCache"));
+    IFileManager::Get().MakeDirectory(*SaveDirectory, true);
+
+    const FString FileName = FString::Printf(TEXT("%s_%d.bin"), *ActorName, Index);
+    const FString FullPath = FPaths::Combine(SaveDirectory, FileName);
+    bFileFound = FPaths::FileExists(FullPath);
+
+    return FullPath;
+}
+
+bool UAppearanceManifoldBlueprintFunctionLibrary::DeleteTensorCacheFile(
+    const FString& ActorName,
+    int32 Index)
+{
+    const FString SaveDirectory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("TensorCache"));
+
+    const FString FileName = FString::Printf(TEXT("%s_%d.bin"), *ActorName, Index);
+    const FString FullPath = FPaths::Combine(SaveDirectory, FileName);
+    if (!FPaths::FileExists(FullPath))
+    {
+        return false;
+    }
+
+    return IFileManager::Get().Delete(*FullPath);
+}
 
 void UAppearanceManifoldBlueprintFunctionLibrary::BuildNearestTrajectoryCache(
     const TArray<float>& Texture7D,
@@ -540,9 +526,7 @@ void UAppearanceManifoldBlueprintFunctionLibrary::BuildNearestTrajectoryCache(
 
     OutNearestIndices.SetNumUninitialized(TotalPixels);
 
-    const FWeatheringSample* Traj =
-        reinterpret_cast<const FWeatheringSample*>(
-            TrajectorySamples.GetData());
+    const FWeatheringSample* Traj = reinterpret_cast<const FWeatheringSample*>(TrajectorySamples.GetData());
 
     ParallelFor(TotalPixels, [&](int32 i)
         {
@@ -551,38 +535,39 @@ void UAppearanceManifoldBlueprintFunctionLibrary::BuildNearestTrajectoryCache(
             int32 BestIdx = 0;
             float BestDist = MAX_flt;
 
-            for (int32 t = 0; t < T; ++t)
-            {
-                const float* Sample = Traj[t].Data;
-
-                float DistSq = 0.0f;
-
-                for (int32 c = 0; c < 7; ++c)
+           // ParallelFor(T, [&](int32 t)
+                // is it possible?
+                for (int32 t = 0; t < T; ++t)
                 {
-                    const float D = Sample[c] - Pixel[c];
-                    DistSq += D * D;
-                }
+                    const float* Sample = Traj[t].Data;
 
-                if (DistSq < BestDist)
-                {
-                    BestDist = DistSq;
-                    BestIdx = t;
+                    float DistSq = 0.0f;
+
+                    for (int32 c = 0; c < 7; ++c)
+                    {
+                        const float D = Sample[c] - Pixel[c];
+                        DistSq += D * D;
+
+                        if (DistSq >= BestDist) break;
+                    }
+
+                    if (DistSq < BestDist)
+                    {
+                        BestDist = DistSq;
+                        BestIdx = t;
+                    }
                 }
-            }
+            //);
 
             OutNearestIndices[i] = BestIdx;
         });
+
     double End = FPlatformTime::Seconds();
-    UE_LOG(LogTemp, Warning,
-        TEXT("Pixels=%d T=%d"),
-        TotalPixels,
-        T);
-    UE_LOG(LogTemp, Warning,
-        TEXT("BuildNearestTrajectoryCache %.3f ms"),
-        (End - Start) * 1000.0);
+    UE_LOG(LogTemp, Warning, TEXT("Pixels=%d T=%d"), TotalPixels, T);
+    UE_LOG(LogTemp, Warning, TEXT("BuildNearestTrajectoryCache %.3f ms"), (End - Start) * 1000.0);
 }
 
-void UAppearanceManifoldBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
+void UAppearanceManifoldBlueprintFunctionLibrary::ReconstructTexturesForTrajectory(
     const TArray<float>& Tensor7D,
     int32 Width,
     int32 Height,
@@ -596,13 +581,15 @@ void UAppearanceManifoldBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
     UTexture2D*& OutRoughness)
 {
     const int32 PixelCount = Width * Height;
-    if (Tensor7D.Num() != PixelCount * 7) return;
+    if (Tensor7D.Num() != PixelCount * 7) {
+        UE_LOG(LogTemp, Warning, TEXT("Tensor size mismatch for pixel count"));
+        return;
+    } 
 
     auto CreateTex = [&](bool bSRGB) {
         UTexture2D* Tex = NewObject<UTexture2D>(GetTransientPackage(), NAME_None, RF_Transient);
         Tex->AddToRoot();
 
-        // 1. SourceInit을 사용하여 엔진이 버퍼를 안전하게 할당하도록 함
         Tex->Source.Init(Width, Height, 1, 1, TSF_BGRA8);
         Tex->SRGB = bSRGB;
         Tex->CompressionSettings = bSRGB ? TC_Default : TC_Masks;
@@ -617,11 +604,9 @@ void UAppearanceManifoldBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
 
     if (!ExistingRoughness) OutRoughness = CreateTex(false);
     else                    OutRoughness = ExistingRoughness;
-        
 
-    // 2. Source 데이터를 직접 수정 (BulkData.Lock 대신 Mip.BulkData 사용)
     auto WriteToTexture = [&](UTexture2D* Tex, int32 ChannelOffset, bool bIsRoughness) {
-        uint8* RawData = Tex->Source.LockMip(0); // 엔진이 보장하는 안전한 Lock
+        uint8* RawData = Tex->Source.LockMip(0);
 
         ParallelFor(PixelCount, [&](int32 i) {
             int32 PIdx = i * 4;
@@ -639,8 +624,6 @@ void UAppearanceManifoldBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
             });
 
         Tex->Source.UnlockMip(0);
-        // [중요] 컴파일을 트리거하지 않고 에셋 상태만 갱신
-        //Tex->UpdateResource();
         };
 
     WriteToTexture(OutBaseColor, 0, false);
@@ -650,33 +633,138 @@ void UAppearanceManifoldBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
     OutBaseColor->UpdateResource();
     OutSpecular->UpdateResource();
     OutRoughness->UpdateResource();
+}
 
+void UAppearanceManifoldBlueprintFunctionLibrary::ReconstructTexturesFromTensor(
+    const TArray<float>& Tensor7D,
+    int32 Width,
+    int32 Height,
 
-    auto LogTextureSource = [](const TCHAR* Name, UTexture2D* Tex)
+    UTexture2D* ExistingBaseColor,
+    UTexture2D* ExistingSpecular,
+    UTexture2D* ExistingRoughness,
+
+    UTexture2D*& OutBaseColor,
+    UTexture2D*& OutSpecular,
+    UTexture2D*& OutRoughness)
+{
+    const int32 PixelCount = Width * Height;
+
+    if (Tensor7D.Num() != PixelCount * 7)
+    {
+        return;
+    }
+
+    auto CreateTex = [&](bool bSRGB)
         {
-            TArray64<uint8> RawData;
-            Tex->Source.GetMipData(RawData, 0);
+            UTexture2D* Tex = UTexture2D::CreateTransient(Width, Height, PF_B8G8R8A8);
 
-            UE_LOG(LogTemp, Warning,
-                TEXT("%s RawData Num=%lld"),
-                Name,
-                RawData.Num());
-
-            if (RawData.Num() >= 4)
+            if (!Tex)
             {
-                UE_LOG(LogTemp, Warning,
-                    TEXT("%s Pixel0=%d %d %d %d"),
-                    Name,
-                    RawData[0],
-                    RawData[1],
-                    RawData[2],
-                    RawData[3]);
+                return (UTexture2D*)nullptr;
             }
+
+            Tex->SRGB = bSRGB;
+            Tex->CompressionSettings =
+                bSRGB ? TC_Default : TC_Masks;
+
+            Tex->MipGenSettings = TMGS_NoMipmaps;
+            Tex->NeverStream = true;
+            Tex->LODGroup = TEXTUREGROUP_UI;
+
+            Tex->UpdateResource();
+
+            UE_LOG(
+                LogTemp,
+                Warning,
+                TEXT("CreateTex: %s (%dx%d)"),
+                *Tex->GetName(),
+                Width,
+                Height);
+
+            return Tex;
         };
 
-    LogTextureSource(TEXT("BC"), OutBaseColor);
-    LogTextureSource(TEXT("SP"), OutSpecular);
-    LogTextureSource(TEXT("RG"), OutRoughness);
+    auto IsTextureReusable = [&](UTexture2D* Texture)
+        {
+            return Texture && Texture->GetSizeX() == Width && Texture->GetSizeY() == Height;
+        };
+
+    if (IsTextureReusable(ExistingBaseColor))
+    {
+        OutBaseColor = ExistingBaseColor;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Creating BaseColor Texture"));
+        OutBaseColor = CreateTex(true);
+    }
+
+    if (IsTextureReusable(ExistingSpecular))
+    {
+        OutSpecular = ExistingSpecular;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Creating Specular Texture"));
+        OutSpecular = CreateTex(false);
+    }
+
+    if (IsTextureReusable(ExistingRoughness))
+    {
+        OutRoughness = ExistingRoughness;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Creating Roughness Texture"));
+        OutRoughness = CreateTex(false);
+    }
+
+    auto WriteToTexture =[&](UTexture2D* Texture,int32 ChannelOffset,bool bIsRoughness)
+        {
+            if (!Texture)
+            {
+                return;
+            }
+
+            TArray<uint8> PixelData;
+            PixelData.SetNumUninitialized(PixelCount * 4);
+
+            ParallelFor(PixelCount,[&](int32 PixelIndex)
+                {
+                    const int32 PixelOffset = PixelIndex * 4;
+
+                    if (bIsRoughness)
+                    {
+                        const uint8 Roughness = uint8(FMath::Clamp(Tensor7D[PixelIndex * 7 + 6] * 255.0f, 0.0f, 255.0f));
+
+                        PixelData[PixelOffset + 0] = Roughness;
+                        PixelData[PixelOffset + 1] = Roughness;
+                        PixelData[PixelOffset + 2] = Roughness;
+                    }
+                    else
+                    {
+                        const int32 TensorOffset = PixelIndex * 7 + ChannelOffset;
+
+                        PixelData[PixelOffset + 0] = uint8(FMath::Clamp(Tensor7D[TensorOffset + 2] * 255.0f, 0.0f, 255.0f));
+                        PixelData[PixelOffset + 1] = uint8(FMath::Clamp(Tensor7D[TensorOffset + 1] * 255.0f, 0.0f, 255.0f));
+                        PixelData[PixelOffset + 2] = uint8(FMath::Clamp(Tensor7D[TensorOffset + 0] * 255.0f, 0.0f, 255.0f));
+                    }
+
+                    PixelData[PixelOffset + 3] = 255;
+                });
+
+            UpdateTextureBGRA(Texture, PixelData, Width, Height);
+        };
+
+    WriteToTexture(OutBaseColor, 0, false);
+    WriteToTexture(OutSpecular, 3, false);
+    WriteToTexture(OutRoughness, 0, true);
+
+    UE_LOG(
+        LogTemp,
+        Warning,
+        TEXT("Reconstruct Finished"));
 }
 
 
@@ -706,6 +794,10 @@ void UAppearanceManifoldBlueprintFunctionLibrary::ApplyWeatheringTexturesToMesh(
         return;
     }
 
+    UE_LOG(
+        LogTemp,
+        Warning,
+        TEXT("Apply Started"));
     // ------------------------------------------------------------
     // Create Dynamic Material
     // ------------------------------------------------------------
@@ -723,7 +815,6 @@ void UAppearanceManifoldBlueprintFunctionLibrary::ApplyWeatheringTexturesToMesh(
     if (!MID)
     {
         MID = MeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(MaterialIndex, BaseMaterial);
-        UE_LOG(LogTemp, Warning, TEXT("MID Created"));
     }
 
     if (!MID)
@@ -736,36 +827,43 @@ void UAppearanceManifoldBlueprintFunctionLibrary::ApplyWeatheringTexturesToMesh(
     // Apply Textures
     // ------------------------------------------------------------
 
-    MID->SetTextureParameterValue(BaseParamName, BaseTexture);
+    UTexture* CurrentBase = nullptr;
+    UTexture* CurrentSpec = nullptr;
+    UTexture* CurrentRough = nullptr;
 
-    MID->SetTextureParameterValue(SpecParamName, SpecTexture);
+    MID->GetTextureParameterValue(BaseParamName, CurrentBase);
+    MID->GetTextureParameterValue(SpecParamName, CurrentSpec);
+    MID->GetTextureParameterValue(RoughParamName, CurrentRough);
 
-    MID->SetTextureParameterValue(RoughParamName, RoughTexture);
+    if (CurrentBase != BaseTexture)
+    {
+        MID->SetTextureParameterValue(BaseParamName, BaseTexture);
+    }
+
+    if (CurrentSpec != SpecTexture)
+    {
+        MID->SetTextureParameterValue(SpecParamName, SpecTexture);
+    }
+
+    if (CurrentRough != RoughTexture)
+    {
+        MID->SetTextureParameterValue(RoughParamName, RoughTexture);
+    }
+
+
+    // check : ApplyTextures Base=None
 
     OutMID = MID;
 
-    UE_LOG(LogTemp, Log, TEXT("Weathering textures applied."));
+    UE_LOG(
+        LogTemp,
+        Warning,
+        TEXT("Apply Finished"));
 }
 
 
 
 
-#include "IImageWrapper.h"
-#include "IImageWrapperModule.h"
-#include "Modules/ModuleManager.h"
-
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
-#include "HAL/PlatformFilemanager.h"
-
-#include "Engine/Texture2D.h"
-
-#if WITH_EDITOR
-#include "Exporters/Exporter.h"
-#include "IPythonScriptPlugin.h"
-#endif
-
-#include "ImageUtils.h"
 
 
 bool UAppearanceManifoldBlueprintFunctionLibrary::ExportTextureToPNG(UTexture2D* Texture, const FString& FilePath)
@@ -820,14 +918,9 @@ bool UAppearanceManifoldBlueprintFunctionLibrary::ExportTextureToPNG(UTexture2D*
         return false;
     }
 
-    FMemory::Memcpy(
-        Image.AsBGRA8().GetData(),
-        RawData.GetData(),
-        RawData.Num());
+    FMemory::Memcpy(Image.AsBGRA8().GetData(), RawData.GetData(), RawData.Num());
 
-    return FImageUtils::SaveImageByExtension(
-        *FilePath,
-        FImageView(Image));
+    return FImageUtils::SaveImageByExtension(*FilePath, FImageView(Image));
     // return true;
 #else
     return false;
@@ -866,27 +959,17 @@ bool UAppearanceManifoldBlueprintFunctionLibrary::RunWeatheringPipeline(
     }
 
 
-    const FString BaseColorPath =
-        WorkingDirectory / TEXT("BaseColor.png");
-
-    const FString SpecularPath =
-        WorkingDirectory / TEXT("Specular.png");
-
-    const FString RoughnessPath =
-        WorkingDirectory / TEXT("Roughness.png");
+    const FString BaseColorPath = WorkingDirectory / TEXT("BaseColor.png");
+    const FString SpecularPath = WorkingDirectory / TEXT("Specular.png");
+    const FString RoughnessPath = WorkingDirectory / TEXT("Roughness.png");
 
     IFileManager::Get().Delete(*BaseColorPath);
     IFileManager::Get().Delete(*SpecularPath);
     IFileManager::Get().Delete(*RoughnessPath);
 
-    const bool bBaseExport =
-        ExportTextureToPNG(BaseColor, BaseColorPath);
-
-    const bool bSpecExport =
-        ExportTextureToPNG(Specular, SpecularPath);
-
-    const bool bRoughExport =
-        ExportTextureToPNG(Roughness, RoughnessPath);
+    const bool bBaseExport = ExportTextureToPNG(BaseColor, BaseColorPath);
+    const bool bSpecExport = ExportTextureToPNG(Specular, SpecularPath);
+    const bool bRoughExport = ExportTextureToPNG(Roughness, RoughnessPath);
 
     if (!bBaseExport || !bSpecExport || !bRoughExport)
     {
@@ -907,102 +990,86 @@ bool UAppearanceManifoldBlueprintFunctionLibrary::RunWeatheringPipeline(
         *FileName
     );
 
-
-    UE_LOG(LogTemp, Warning,
-        TEXT("BC Exists=%d Size=%lld"),
-        IFileManager::Get().FileExists(*BaseColorPath),
-        IFileManager::Get().FileSize(*BaseColorPath));
-
-    UE_LOG(LogTemp, Warning,
-        TEXT("SP Exists=%d Size=%lld"),
-        IFileManager::Get().FileExists(*SpecularPath),
-        IFileManager::Get().FileSize(*SpecularPath));
-
-    UE_LOG(LogTemp, Warning,
-        TEXT("RG Exists=%d Size=%lld"),
-        IFileManager::Get().FileExists(*RoughnessPath),
-        IFileManager::Get().FileSize(*RoughnessPath));
-
     return ExecutePythonCommand(PythonCommand);
 }
 
-TArray<UTexture2D*> UAppearanceManifoldBlueprintFunctionLibrary::RunWeatheringInterpolation(UTexture2D* BaseColorA, UTexture2D* SpecularA, UTexture2D* RoughnessA, UTexture2D* BaseColorB, UTexture2D* SpecularB, UTexture2D* RoughnessB, float alpha, const FString& WorkingDirectory)
-{
-    TArray<UTexture2D*> Result;
-    if (!BaseColorA || !SpecularA || !RoughnessA || !BaseColorB || !SpecularB || !RoughnessB)
-    {
-        return Result;
-    }
-
-    const FString BaseColorAPath =
-        WorkingDirectory / TEXT("BaseColorA.png");
-
-    const FString SpecularAPath =
-        WorkingDirectory / TEXT("SpecularA.png");
-
-    const FString RoughnessAPath =
-        WorkingDirectory / TEXT("RoughnessA.png");
-
-    const bool bBaseExportA =
-        ExportTextureToPNG(BaseColorA, BaseColorAPath);
-
-    const bool bSpecExportA =
-        ExportTextureToPNG(SpecularA, SpecularAPath);
-
-    const bool bRoughExportA =
-        ExportTextureToPNG(RoughnessA, RoughnessAPath);
-
-    if (!bBaseExportA || !bSpecExportA || !bRoughExportA)
-    {
-        return Result;
-    }
-
-    const FString BaseColorBPath =
-        WorkingDirectory / TEXT("BaseColorB.png");
-
-    const FString SpecularBPath =
-        WorkingDirectory / TEXT("SpecularB.png");
-
-    const FString RoughnessBPath =
-        WorkingDirectory / TEXT("RoughnessB.png");
-
-    const bool bBaseExportB =
-        ExportTextureToPNG(BaseColorB, BaseColorBPath);
-
-    const bool bSpecExportB =
-        ExportTextureToPNG(SpecularB, SpecularBPath);
-
-    const bool bRoughExportB =
-        ExportTextureToPNG(RoughnessB, RoughnessBPath);
-
-    if (!bBaseExportB || !bSpecExportB || !bRoughExportB)
-    {
-        return Result;
-    }
-
-    FString PythonCommand = FString::Printf(
-        TEXT("import MainManager; ")
-        TEXT("MainManager.WeatheringPipeline.run_interpolation(")
-        TEXT("[r'%s', r'%s', r'%s'], ")
-        TEXT("[r'%s', r'%s', r'%s'], ")
-        TEXT("%f, ")
-        TEXT("r'%s')"),
-
-        *BaseColorAPath,
-        *SpecularAPath,
-        *RoughnessAPath,
-
-        *BaseColorBPath,
-        *SpecularBPath,
-        *RoughnessBPath,
-
-        alpha,
-
-        *WorkingDirectory
-    );
-
-    return Result;
-}
+//TArray<UTexture2D*> UAppearanceManifoldBlueprintFunctionLibrary::RunWeatheringInterpolation(UTexture2D* BaseColorA, UTexture2D* SpecularA, UTexture2D* RoughnessA, UTexture2D* BaseColorB, UTexture2D* SpecularB, UTexture2D* RoughnessB, float alpha, const FString& WorkingDirectory)
+//{
+//    TArray<UTexture2D*> Result;
+//    if (!BaseColorA || !SpecularA || !RoughnessA || !BaseColorB || !SpecularB || !RoughnessB)
+//    {
+//        return Result;
+//    }
+//
+//    const FString BaseColorAPath =
+//        WorkingDirectory / TEXT("BaseColorA.png");
+//
+//    const FString SpecularAPath =
+//        WorkingDirectory / TEXT("SpecularA.png");
+//
+//    const FString RoughnessAPath =
+//        WorkingDirectory / TEXT("RoughnessA.png");
+//
+//    const bool bBaseExportA =
+//        ExportTextureToPNG(BaseColorA, BaseColorAPath);
+//
+//    const bool bSpecExportA =
+//        ExportTextureToPNG(SpecularA, SpecularAPath);
+//
+//    const bool bRoughExportA =
+//        ExportTextureToPNG(RoughnessA, RoughnessAPath);
+//
+//    if (!bBaseExportA || !bSpecExportA || !bRoughExportA)
+//    {
+//        return Result;
+//    }
+//
+//    const FString BaseColorBPath =
+//        WorkingDirectory / TEXT("BaseColorB.png");
+//
+//    const FString SpecularBPath =
+//        WorkingDirectory / TEXT("SpecularB.png");
+//
+//    const FString RoughnessBPath =
+//        WorkingDirectory / TEXT("RoughnessB.png");
+//
+//    const bool bBaseExportB =
+//        ExportTextureToPNG(BaseColorB, BaseColorBPath);
+//
+//    const bool bSpecExportB =
+//        ExportTextureToPNG(SpecularB, SpecularBPath);
+//
+//    const bool bRoughExportB =
+//        ExportTextureToPNG(RoughnessB, RoughnessBPath);
+//
+//    if (!bBaseExportB || !bSpecExportB || !bRoughExportB)
+//    {
+//        return Result;
+//    }
+//
+//    FString PythonCommand = FString::Printf(
+//        TEXT("import MainManager; ")
+//        TEXT("MainManager.WeatheringPipeline.run_interpolation(")
+//        TEXT("[r'%s', r'%s', r'%s'], ")
+//        TEXT("[r'%s', r'%s', r'%s'], ")
+//        TEXT("%f, ")
+//        TEXT("r'%s')"),
+//
+//        *BaseColorAPath,
+//        *SpecularAPath,
+//        *RoughnessAPath,
+//
+//        *BaseColorBPath,
+//        *SpecularBPath,
+//        *RoughnessBPath,
+//
+//        alpha,
+//
+//        *WorkingDirectory
+//    );
+//
+//    return Result;
+//}
 
 
 UTexture2D* UAppearanceManifoldBlueprintFunctionLibrary::ImportTextureFromFile(const FString& FilePath)
@@ -1012,9 +1079,40 @@ UTexture2D* UAppearanceManifoldBlueprintFunctionLibrary::ImportTextureFromFile(c
 
 FString UAppearanceManifoldBlueprintFunctionLibrary::GetAppearanceManifoldDirectory()
 {
-    FString Directory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("_WeatheringResults"));
+    FString Directory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("WeatheringResults"));
 
     IFileManager::Get().MakeDirectory(*Directory, true);
 
     return Directory;
+}
+
+void UAppearanceManifoldBlueprintFunctionLibrary::UpdateTextureBGRA(
+    UTexture2D* Texture,
+    const TArray<uint8>& PixelData,
+    int32 Width,
+    int32 Height)
+{
+    if (!Texture || PixelData.Num() != Width * Height * 4)
+    {
+        return;
+    }
+
+    FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
+
+    uint8* UploadData = new uint8[PixelData.Num()];
+
+    FMemory::Memcpy(UploadData, PixelData.GetData(), PixelData.Num());
+
+    Texture->UpdateTextureRegions(
+        0,
+        1,
+        Region,
+        Width * 4,
+        4,
+        UploadData,
+        [](void* SrcData, const FUpdateTextureRegion2D* InRegion)
+        {
+            delete[] static_cast<uint8*>(SrcData);
+            delete InRegion;
+        });
 }

@@ -23,6 +23,7 @@ private:
     int32 TextureSize   = 1024;
     float BounceDistance  = 50.0f;
     float ParabolaGravity = 0.5f;
+    bool  bSimAdvancedExpanded_ = false;
 
     // ── Cross-channel rules (paper §3.4) ──────────────────────────────────
     float CrossRustFromHumidity  = 0.0f;
@@ -36,8 +37,12 @@ private:
     void         ApplyScenario(int32 Idx);
 
     // ── Detail textures (optional — nullptr = flat color) ─────────────────
-    UTexture2D* DustTexture_    = nullptr;
-    UTexture2D* PigmentTexture_ = nullptr;
+    UTexture2D* DustTexture_       = nullptr;
+    UTexture2D* PigmentTexture_    = nullptr;
+    bool        bDustUseTexture_    = false;
+    bool        bPigmentUseTexture_ = false;
+    void        SaveSettings() const;
+    void        LoadSettings();
 
     // ── Dust/pigment tint intensity [0=no color change, 1=full effect] ────
     float DustVisibility_ = 1.0f;
@@ -73,6 +78,12 @@ private:
     GTTonType     EntryToTonType(const FTonTypeEntry& e) const;
     GTGammaSource EntryToSource (const FTonTypeEntry& e) const;
 
+    // ── Occluder actors (physics-only, no texture output) ────────────────
+    TArray<TWeakObjectPtr<AActor>> OccluderActors_;
+    bool  bAutoOccluder_      = true;
+    float AutoOccluderRadius_ = 500.f;
+    void  AutoPopulateOccluders(const TArray<AActor*>& Targets);
+
     // ── Per-actor γ-reflectance ───────────────────────────────────────────
     struct FActorReflEntry {
         FString Name;
@@ -100,7 +111,7 @@ private:
     void RefreshVisualizer();
 
     // ── UI helpers ────────────────────────────────────────────────────────
-    TSharedPtr<class SMultiLineEditableText> StatusText_;
+    TSharedPtr<class STextBlock>             ResultText_;
     TArray<TSharedPtr<FString>>              SourceOptions_;
     TArray<TSharedPtr<FString>>              ScenarioOptions_;
 

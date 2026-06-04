@@ -281,7 +281,7 @@ void GTSimulator::traceTon(GTTon ton, const GTTonType& type, GTIterationStats& s
             float delta = src * rule.coeff * config_.pickup_k;
             if (rule.to_entity == GTTransportEntity::TON)
                 sChannelAdd(ton.carrier, rule.to_channel, delta);
-            else
+            else if (!surfel.is_occluder)
                 sChannelAdd(surfel.material, rule.to_channel, delta);
         }
 
@@ -400,7 +400,7 @@ void GTSimulator::traceTon(GTTon ton, const GTTonType& type, GTIterationStats& s
             // [D] Probabilistic deposit gate: only a fraction of settling tons leaves a mark.
             const bool doDeposit = (config_.probabilistic_deposit >= 1.0f)
                                 || (u01(rng) < config_.probabilistic_deposit);
-            if (doDeposit) {
+            if (doDeposit && !surfel.is_occluder) {
                 if (textures_ && hit.geom_id >= 0 && hit.geom_id < (int)textures_->size()) {
                     GTVec2 uv = hitAtlasUV(hit, surfel);
                     (*textures_)[hit.geom_id].deposit(uv.x, uv.y, d_sd, d_sp, d_sr, d_sh);
@@ -555,7 +555,7 @@ GTRayPath GTSimulator::traceTonDebug() {
         rec.geom_id    = hit.geom_id;
         rec.uv         = hitAtlasUV(hit, surfel);
 
-        if (textures_ && hit.geom_id >= 0 && hit.geom_id < (int)textures_->size()) {
+        if (!surfel.is_occluder && textures_ && hit.geom_id >= 0 && hit.geom_id < (int)textures_->size()) {
             const GTObjTexture& tex = (*textures_)[hit.geom_id];
             int px = std::clamp((int)(rec.uv.x * tex.width),  0, tex.width  - 1);
             int py = std::clamp((int)(rec.uv.y * tex.height), 0, tex.height - 1);
@@ -592,7 +592,7 @@ GTRayPath GTSimulator::traceTonDebug() {
             float delta = src * rule.coeff * config_.pickup_k;
             if (rule.to_entity == GTTransportEntity::TON)
                 sChannelAdd(ton.carrier, rule.to_channel, delta);
-            else
+            else if (!surfel.is_occluder)
                 sChannelAdd(surfel.material, rule.to_channel, delta);
         }
 

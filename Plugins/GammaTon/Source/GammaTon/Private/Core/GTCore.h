@@ -90,6 +90,9 @@ struct GTSurfel {
     //   · applyCrossChannel: sh drives sr growth, humidity decay
     //   · stain-bleeding PICKUP: surface sp/sr is absorbed by passing γ-tons
     GTMaterialProps    material;
+    // Occluder surfels participate in ray intersection (block/redirect γ-tons) but
+    // never receive texture deposits and are excluded from output.
+    bool               is_occluder = false;
 };
 
 // ── Texture atlas ─────────────────────────────────────────────────────────────
