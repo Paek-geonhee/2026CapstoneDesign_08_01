@@ -2,7 +2,8 @@ from sklearn.neighbors import NearestNeighbors
 import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
-
+from scipy.sparse.csgraph import minimum_spanning_tree
+from scipy.spatial import distance_matrix
 """ 
 Description
 Isomap을 기반으로 Manifold Graph를 구성함.
@@ -19,91 +20,32 @@ KNN 규칙을 기반으로 epsilon을 적용해서 adaptive하게 인접 노드�
 
 """
 
+def Ensure_Connected(edge_src, edge_dst, edge_weight, N, data_7d):
 
-def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
-    """
-    Params
-    ----------
-    samples_7d      : np.array(N,7)
-    K               : int
-    extra_ratio     : int
-    epsilon_scale   : float
-
-    return
-    edge_src        : np.array(E,E)
-    edge_dst        : np.array(E,E)
-    edge_weight     : np.array(E,E)
-    weather_score   : np.array(N,7)
-    ----------
-    """
-
-    N = samples_7d.shape[0]
-
-    weather_score = compute_weather_score(samples_7d)
-
-    extra_k = min(K * extra_ratio, N - 1)
-
-    nn = NearestNeighbors(n_neighbors=extra_k + 1, algorithm='auto')
-
-    nn.fit(samples_7d)
-
-    distances, indices = nn.kneighbors(samples_7d)
-
-    # remove self
-    distances = distances[:, 1:]
-    indices = indices[:, 1:]
-
-    edge_src = []
-    edge_dst = []
-    edge_weight = []
-
-    for i in range(N):
-
-        local_dists = distances[i]
-        local_inds = indices[i]
-
-        dp = np.mean(local_dists[:K])
-
-        epsilon = epsilon_scale * dp
-
-        score_i = weather_score[i]
-
-        for dist, j in zip(local_dists, local_inds):
-
-            if dist > epsilon:
-                break
-
-            score_j = weather_score[j]
-
-            delta = score_j - score_i
-
-
-            # 풍화가 진행되는 방향일수록 가중치를 작게 적용, 반대일 결우 가중치를 크게 적용하여
-            # Knn 연결 가능성을 조정. 최종적으로 연결되는 노드는 가능한 풍화도가 높은 노드 위주로 구성
-            # -> 역방향 trajectory 방지
-            if delta >= 0:
-                # forward progression
-                progression_factor = 1.0 - 0.35 * delta
-
-            else:
-                # backward penalty
-                progression_factor = 1.0 + 1.5 * abs(delta)
-
-            weight = dist * progression_factor
-
-            edge_src.append(i)
-            edge_dst.append(j)
-            edge_weight.append(weight)
-
-    return (
-        np.array(edge_src, dtype=np.int32),
-        np.array(edge_dst, dtype=np.int32),
-        np.array(edge_weight, dtype=np.float32),
-        weather_score
-    )
-
-
-
+    src = np.array(edge_src)
+    dst = np.array(edge_dst)
+    wei = np.array(edge_weight)
+    
+    graph = csr_matrix((wei, (src, dst)), shape=(N, N))
+    n_comp, labels = connected_components(graph, directed=False)
+    
+    if n_comp > 1:
+        print(f"🔄 단절된 그래프 감지 ({n_comp}개). MST로 연결 강제 보정...")
+        
+        # 전체 데이터에 대한 최소 스패닝 트리 생성 (거리 기반)
+        # 데이터가 클 경우를 대비해 distance_matrix 대신 샘플링 고려 가능
+        dist_mat = distance_matrix(data_7d, data_7d) # data_7d는 외부 변수 혹은 인자로 전달받아야 함
+        mst = minimum_spanning_tree(csr_matrix(dist_mat))
+        
+        mst_src, mst_dst = mst.nonzero()
+        mst_wei = mst.data * 2.0 # MST 엣지는 KNN보다 우선순위가 낮도록 가중치 증폭
+        
+        # 기존 리스트에 추가
+        edge_src.extend(mst_src.tolist())
+        edge_dst.extend(mst_dst.tolist())
+        edge_weight.extend(mst_wei.tolist())
+        
+    return edge_src, edge_dst, edge_weight
 
 def compute_weather_score(samples_7d):
 
@@ -200,107 +142,6 @@ def Get_KNN_Graph_Adaptive(
     edge_weight : np.array(E,)
     weather_score : np.array(N,)
     """
-
-    # N = samples_7d.shape[0]
-
-    # # =====================================================
-    # # 1. weather score
-    # # =====================================================
-
-    # weather_score = compute_weather_score(samples_7d)
-
-    # # =====================================================
-    # # 2. KNN search
-    # # =====================================================
-
-    # nn = NearestNeighbors(
-    #     n_neighbors=K + 1,
-    #     algorithm='auto'
-    # )
-
-    # nn.fit(samples_7d)
-
-    # distances, indices = nn.kneighbors(samples_7d)
-
-    # # remove self neighbor
-    # distances = distances[:, 1:]
-    # indices = indices[:, 1:]
-
-    # # =====================================================
-    # # 3. graph construction
-    # # =====================================================
-
-    # edge_src = []
-    # edge_dst = []
-    # edge_weight = []
-
-    # for i in range(N):
-
-    #     local_dists = distances[i]
-    #     local_inds = indices[i]
-
-    #     # -------------------------------------------------
-    #     # adaptive epsilon
-    #     # -------------------------------------------------
-
-    #     dp = np.mean(local_dists)
-
-    #     epsilon = epsilon_scale * dp
-
-    #     score_i = weather_score[i]
-
-    #     # -------------------------------------------------
-    #     # candidate neighbors
-    #     # -------------------------------------------------
-
-    #     for dist, j in zip(local_dists, local_inds):
-
-    #         # remove overly distant neighbors
-    #         if dist > epsilon:
-    #             continue
-
-    #         score_j = weather_score[j]
-
-    #         delta = score_j - score_i
-
-    #         # =============================================
-    #         # progression weighting
-    #         # =============================================
-
-    #         if delta >= 0:
-
-    #             # forward progression
-    #             progression_factor = (
-    #                 1.0 - 0.35 * delta
-    #             )
-
-    #         else:
-
-    #             # backward penalty
-    #             progression_factor = (
-    #                 1.0 + 1.5 * abs(delta)
-    #             )
-
-    #         weight = dist * np.clip(progression_factor, 0.1, 5.0)
-
-    #         # =============================================
-    #         # append edge
-    #         # =============================================
-
-    #         edge_src.append(i)
-    #         edge_dst.append(j)
-    #         edge_weight.append(weight)
-
-    # # =====================================================
-    # # 4. return
-    # # =====================================================
-
-    # return (
-    #     np.array(edge_src, dtype=np.int32),
-    #     np.array(edge_dst, dtype=np.int32),
-    #     np.array(edge_weight, dtype=np.float32),
-    #     weather_score
-    # )
     N = samples_7d.shape[0]
     weather_score = compute_weather_score(samples_7d)
 
@@ -351,9 +192,100 @@ def Get_KNN_Graph_Adaptive(
             edge_dst.append(target_node)
             edge_weight.append(100.0) # 매우 큰 가중치를 주어 최후의 수단으로만 사용하게 함
 
+    edge_src, edge_dst, edge_weight = Ensure_Connected(edge_src, edge_dst, edge_weight, N, samples_7d)
+
     return (
         np.array(edge_src, dtype=np.int32),
         np.array(edge_dst, dtype=np.int32),
         np.array(edge_weight, dtype=np.float32),
         weather_score
     )
+
+
+
+
+
+
+
+
+# def Get_KNN_graph(samples_7d, K=8, extra_ratio=4, epsilon_scale=1.5):
+#     """
+#     Params
+#     ----------
+#     samples_7d      : np.array(N,7)
+#     K               : int
+#     extra_ratio     : int
+#     epsilon_scale   : float
+
+#     return
+#     edge_src        : np.array(E,E)
+#     edge_dst        : np.array(E,E)
+#     edge_weight     : np.array(E,E)
+#     weather_score   : np.array(N,7)
+#     ----------
+#     """
+
+#     N = samples_7d.shape[0]
+
+#     weather_score = compute_weather_score(samples_7d)
+
+#     extra_k = min(K * extra_ratio, N - 1)
+
+#     nn = NearestNeighbors(n_neighbors=extra_k + 1, algorithm='auto')
+
+#     nn.fit(samples_7d)
+
+#     distances, indices = nn.kneighbors(samples_7d)
+
+#     # remove self
+#     distances = distances[:, 1:]
+#     indices = indices[:, 1:]
+
+#     edge_src = []
+#     edge_dst = []
+#     edge_weight = []
+
+#     for i in range(N):
+
+#         local_dists = distances[i]
+#         local_inds = indices[i]
+
+#         dp = np.mean(local_dists[:K])
+
+#         epsilon = epsilon_scale * dp
+
+#         score_i = weather_score[i]
+
+#         for dist, j in zip(local_dists, local_inds):
+
+#             if dist > epsilon:
+#                 break
+
+#             score_j = weather_score[j]
+
+#             delta = score_j - score_i
+
+
+#             # 풍화가 진행되는 방향일수록 가중치를 작게 적용, 반대일 결우 가중치를 크게 적용하여
+#             # Knn 연결 가능성을 조정. 최종적으로 연결되는 노드는 가능한 풍화도가 높은 노드 위주로 구성
+#             # -> 역방향 trajectory 방지
+#             if delta >= 0:
+#                 # forward progression
+#                 progression_factor = 1.0 - 0.35 * delta
+
+#             else:
+#                 # backward penalty
+#                 progression_factor = 1.0 + 1.5 * abs(delta)
+
+#             weight = dist * progression_factor
+
+#             edge_src.append(i)
+#             edge_dst.append(j)
+#             edge_weight.append(weight)
+
+#     return (
+#         np.array(edge_src, dtype=np.int32),
+#         np.array(edge_dst, dtype=np.int32),
+#         np.array(edge_weight, dtype=np.float32),
+#         weather_score
+#     )
