@@ -111,14 +111,6 @@ void GTSimulator::sampleSource(const GTGammaSource& src, std::mt19937& rng,
     GTVec3 d = src.direction.normalized();
 
     switch (src.type) {
-    case GTSourceType::AREA_TOP: {
-        // Jittered emission over a horizontal rectangle at src.center.z
-        float ox = src.center.x + (u01(rng)*2.0f - 1.0f) * src.area_half_x;
-        float oy = src.center.y + (u01(rng)*2.0f - 1.0f) * src.area_half_z;
-        out_origin = { ox, oy, src.center.z };
-        out_dir    = sampleCone(d, spread_rad, rng);
-        break;
-    }
     case GTSourceType::DIRECTIONAL: {
         // Parallel beam over a plane perpendicular to the emission direction
         GTVec3 t, b;

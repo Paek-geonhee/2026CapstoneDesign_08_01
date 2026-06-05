@@ -113,7 +113,7 @@ static const FGTScenario GScenarios[] = {
       50000, 20, 0.30f, 20.f, 40,
       1.0f, 0.0f, 0.0f,  0.15f, 0.0f, 0.0f,  50.f,
       0.0f, 1.0f, 0.2f, 0.0f,
-      3, 0,0,0, 0,0,-1, 0,800,800,
+      2, 0,0,0, 0,0,-1, 0,800,800,
       0.0f, 0.0f, 0.0f,
       FLinearColor(0.18f,0.42f,0.20f,1), FLinearColor(0.08f,0.35f,0.12f,1) },
 
@@ -141,7 +141,7 @@ static const FGTScenario GScenarios[] = {
       40000, 14, 0.45f, 20.f, 25,
       0.50f, 0.30f, 0.1f,  0.4f, 0.2f, 0.05f,  40.f,
       1.0f, 0.25f, 0.1f, 0.0f,
-      1, -1000,0,600, 1,0,-0.15f, 6,700,700,
+      0, -1000,0,600, 1,0,-0.15f, 6,700,700,
       0.0f, 0.0f, 0.0f,
       FLinearColor(0.74f,0.62f,0.38f,1), FLinearColor(0.68f,0.52f,0.28f,1) },
 
@@ -169,7 +169,7 @@ static const FGTScenario GScenarios[] = {
       30000, 15, 0.55f, 40.f, 25,
       0.05f, 0.05f, 0.8f,  0.3f, 0.1f, 0.05f,  50.f,
       0.2f, 0.5f, 0.05f, 0.95f,
-      2, 0,0,350, 0,0,-1, 10,0,0,
+      1, 0,0,350, 0,0,-1, 10,0,0,
       0.03f, 0.4f, 0.0f,
       FLinearColor(0.42f,0.38f,0.28f,1), FLinearColor(0.35f,0.20f,0.08f,1) },
 
@@ -197,7 +197,7 @@ static const FGTScenario GScenarios[] = {
       40000, 12, 0.40f, 20.f, 25,
       0.5f, 0.3f, 0.1f,  0.4f, 0.15f, 0.05f,  40.f,
       0.85f, 0.15f, 0.5f, 0.25f,
-      1, -1200,0,700, 1,0,-0.1f, 10,600,600,
+      0, -1200,0,700, 1,0,-0.1f, 10,600,600,
       0.008f, 0.1f, 0.0f,
       FLinearColor(0.90f,0.88f,0.84f,1), FLinearColor(0.82f,0.80f,0.76f,1) },
 };
@@ -375,10 +375,9 @@ TSharedRef<SWidget> SGammaTonPanel::MakeUnitBox(float& Val) {
 void SGammaTonPanel::Construct(const FArguments& InArgs)
 {
     SourceOptions_ = {
-        MakeShared<FString>(TEXT("AREA_TOP (rainfall / fallout)")),
-        MakeShared<FString>(TEXT("DIRECTIONAL (wind / parallel)")),
-        MakeShared<FString>(TEXT("POINT (pipe drip / spotlight)")),
-        MakeShared<FString>(TEXT("ENVIRONMENT (omnidirectional sphere)")),
+        MakeShared<FString>(TEXT("Directional Particle")),
+        MakeShared<FString>(TEXT("Spot Particle")),
+        MakeShared<FString>(TEXT("Sky Particle")),
     };
     for (int i = 0; i < GNumScenarios; i++)
         ScenarioOptions_.Add(MakeShared<FString>(GScenarios[i].Name));
@@ -399,7 +398,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .OnClicked(this, &SGammaTonPanel::OnRunClicked)
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("RunBtn", "▶  Run GammaTon Simulation"))
+                    .Text(LOCTEXT("RunBtn", "▶  Apply Weathering"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 13))
                     .ColorAndOpacity(FLinearColor::White)
                     .Justification(ETextJustify::Center)
@@ -513,38 +512,42 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
             [
                 SNew(SHorizontalBox)
                 + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                [ SNew(SBox).WidthOverride(100.f) [ SNew(STextBlock).Text(LOCTEXT("LblNTons", "γ-tons / iter")) ] ]
+                [ SNew(SBox).WidthOverride(120.f) [ SNew(STextBlock).Text(LOCTEXT("LblNTons", "Particles per Step")) ] ]
                 + SHorizontalBox::Slot().FillWidth(1.f).Padding(0, 0, 8, 0)
                 [
                     SNew(SNumericEntryBox<int32>).AllowSpin(false)
                     .Value_Lambda([this]() { return TOptional<int32>(NTonsPerIter); })
                     .OnValueCommitted_Lambda([this](int32 v, ETextCommit::Type) { NTonsPerIter = FMath::Max(1, v); })
-                    .ToolTipText(LOCTEXT("TipNTons", "매 이터레이션마다 발사하는 γ-ton 수."))
+                    .ToolTipText(LOCTEXT("TipNTons",
+                        "Number of particles emitted in a single step.\n"
+                        "Higher values produce more even coverage but increase compute time per step."))
                 ]
                 + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
-                [ SNew(STextBlock).Text(LOCTEXT("LblIter", "Iterations")) ]
+                [ SNew(STextBlock).Text(LOCTEXT("LblIter", "Simulation Steps")) ]
                 + SHorizontalBox::Slot().FillWidth(1.f)
                 [
                     SNew(SNumericEntryBox<int32>).AllowSpin(false)
                     .Value_Lambda([this]() { return TOptional<int32>(NumIterations); })
                     .OnValueCommitted_Lambda([this](int32 v, ETextCommit::Type) { NumIterations = FMath::Max(1, v); })
-                    .ToolTipText(LOCTEXT("TipIter", "시뮬레이션 반복 횟수."))
+                    .ToolTipText(LOCTEXT("TipIter",
+                        "Total number of simulation passes.\n"
+                        "More steps build up thicker weathering layers and smoother gradients."))
                 ]
             ]
             // Deposit K
             + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Deposit K"),
+            [ MakeRow(TEXT("Accumulation Strength"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).MinSliderValue(0.f).MaxSliderValue(1.f).Delta(0.01f)
                 .Value_Lambda([this]() { return DepositK; })
                 .OnValueChanged_Lambda([this](float v) { DepositK = v; })
-                .ToolTipText(LOCTEXT("TipDeposit", "침착 강도 (전역 스케일 0~1)."))
+                .ToolTipText(LOCTEXT("TipDeposit", "Global deposit scale per particle. 0 = no deposit, 1 = maximum accumulation."))
             )]
             + SScrollBox::Slot().Padding(8, 2)
             [ MakeRow(TEXT("Texture size (px)"),
                 SNew(SNumericEntryBox<int32>).AllowSpin(false)
                 .Value_Lambda([this]() { return TOptional<int32>(TextureSize); })
                 .OnValueCommitted_Lambda([this](int32 v, ETextCommit::Type) { TextureSize = FMath::Max(1, v); })
-                .ToolTipText(LOCTEXT("TipTex", "결과 텍스처 해상도 (픽셀). 512~2048 권장."))
+                .ToolTipText(LOCTEXT("TipTex", "Output texture resolution in pixels. Recommended: 512–2048. Larger values give sharper detail but use more memory."))
             )]
             // Advanced toggle button
             + SScrollBox::Slot().Padding(12, 6, 12, 2)
@@ -573,53 +576,56 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 [
                     SNew(SVerticalBox)
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Max bounces"),
+                    [ MakeRow(TEXT("Max Interactions"),
                         SNew(SNumericEntryBox<int32>).AllowSpin(false)
                         .Value_Lambda([this]() { return TOptional<int32>(MaxBounces); })
                         .OnValueCommitted_Lambda([this](int32 v, ETextCommit::Type) { MaxBounces = FMath::Max(1, v); })
-                        .ToolTipText(LOCTEXT("TipBounce", "γ-ton 하나가 최대 반사/이동할 수 있는 횟수."))
+                        .ToolTipText(LOCTEXT("TipBounce", "Maximum scatter / bounce / flow events per particle before it settles. Lower values concentrate deposits near the source."))
                     )]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Flow step (cm)"),
+                    [ MakeRow(TEXT("Flow Distance (cm)"),
                         SNew(SNumericEntryBox<float>).AllowSpin(false)
                         .Value_Lambda([this]() { return TOptional<float>(FlowStep); })
                         .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) { FlowStep = FMath::Max(0.f, v); })
-                        .ToolTipText(LOCTEXT("TipFlow", "표면 흐름(kf) 이벤트 시 이동 거리 (cm)."))
+                        .ToolTipText(LOCTEXT("TipFlow", "Distance a particle travels per surface-flow event. Larger values create longer drip or streak marks."))
                     )]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Bounce dist. (cm)"),
+                    [ MakeRow(TEXT("Bounce Distance (cm)"),
                         SNew(SNumericEntryBox<float>).AllowSpin(false)
                         .Value_Lambda([this]() { return TOptional<float>(BounceDistance); })
                         .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) { BounceDistance = FMath::Max(0.f, v); })
-                        .ToolTipText(LOCTEXT("TipBDist", "kp 포물선 반사의 최대 이동 거리 (cm)."))
+                        .ToolTipText(LOCTEXT("TipBDist", "Maximum arc length for a bounce event in cm. Controls how far particles hop across the surface."))
                     )]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Parabola gravity"),
+                    [ MakeRow(TEXT("Gravity Effect"),
                         SNew(SNumericEntryBox<float>).AllowSpin(false)
                         .Value_Lambda([this]() { return TOptional<float>(ParabolaGravity); })
                         .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) { ParabolaGravity = FMath::Max(0.f, v); })
-                        .ToolTipText(LOCTEXT("TipGrav", "kp 포물선 궤적의 중력 강도."))
+                        .ToolTipText(LOCTEXT("TipGrav", "Downward pull applied to bounce arcs. Higher values create shorter, more curved trajectories."))
                     )]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 2)
-                    [ SNew(STextBlock).Text(LOCTEXT("CrsHdr", "Cross-Channel (per iteration)"))
+                    [ SNew(STextBlock).Text(LOCTEXT("CrsHdr", "Material Interactions"))
                       .ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("sh→sr  (rust)"),
+                    [ MakeRow(TEXT("Moisture → Rust Rate"),
                         SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f)
                         .Value_Lambda([this]() { return CrossRustFromHumidity; })
                         .OnValueChanged_Lambda([this](float v) { CrossRustFromHumidity = v; })
+                        .ToolTipText(LOCTEXT("TipCrossRust", "Per-step conversion rate of moisture into rust. 0 = no rust growth, 1 = rapid oxidation."))
                     )]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("sh decay"),
+                    [ MakeRow(TEXT("Moisture Evaporation"),
                         SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f)
                         .Value_Lambda([this]() { return CrossHumidityDecay; })
                         .OnValueChanged_Lambda([this](float v) { CrossHumidityDecay = v; })
+                        .ToolTipText(LOCTEXT("TipCrossDecay", "How quickly moisture dries out each step. Higher values keep wet zones small and focused."))
                     )]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("sp covers sd"),
+                    [ MakeRow(TEXT("Rust Covers Dust"),
                         SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f)
                         .Value_Lambda([this]() { return CrossPigmentCoversDust; })
                         .OnValueChanged_Lambda([this](float v) { CrossPigmentCoversDust = v; })
+                        .ToolTipText(LOCTEXT("TipCrossPig", "How much rust suppresses dust on the same surface. 1 = rust fully covers any underlying dust."))
                     )]
                 ]
             ]
@@ -632,7 +638,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .Padding(FMargin(8.f, 5.f))
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("TonTypesHdr", "Ton Types"))
+                    .Text(LOCTEXT("TonTypesHdr", "Particle Types"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
                     .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
                 ]
@@ -640,7 +646,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
             + SScrollBox::Slot().Padding(8, 2)
             [
                 SNew(SButton).HAlign(HAlign_Center)
-                .Text(LOCTEXT("AddType", "+ Add Ton Type"))
+                .Text(LOCTEXT("AddType", "+ Add Particle"))
                 .OnClicked(this, &SGammaTonPanel::OnAddTonTypeClicked)
             ]
             + SScrollBox::Slot().Padding(8, 2)
@@ -654,7 +660,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .Padding(FMargin(8.f, 5.f))
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("PerActorHdr", "Per-Actor γ-Reflectance"))
+                    .Text(LOCTEXT("PerActorHdr", "Surface Settings per Object"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
                     .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
                 ]
@@ -683,7 +689,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .Padding(FMargin(8.f, 5.f))
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("OccluderHdr", "Occluder Actors"))
+                    .Text(LOCTEXT("OccluderHdr", "Blocking Objects"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
                     .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
                 ]
@@ -706,9 +712,8 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                     SNew(STextBlock)
                     .Text(LOCTEXT("AutoOccLabel", "Auto-detect nearby occluders"))
                     .ToolTipText(LOCTEXT("TipAutoOcc",
-                        "Run/Trace 실행 시 타깃 액터 주변의 오브젝트를\n"
-                        "자동으로 Occluder에 추가합니다.\n"
-                        "StaticMeshComponent를 가진 액터만 포함됩니다."))
+                        "Automatically include nearby Static Mesh actors as blocking objects when you run the simulation.\n"
+                        "These objects block particles but do not receive weathering themselves."))
                 ]
                 + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
                 [
@@ -731,9 +736,9 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                         }
                     })
                     .ToolTipText(LOCTEXT("TipAutoOccRadius",
-                        "타깃 액터 AABB 중심에서 이 반경(cm) 이내의\n"
-                        "오브젝트를 자동으로 Occluder로 등록합니다.\n"
-                        "값 입력 후 Enter하면 뷰포트에 3초간 표시."))
+                        "Search radius (cm) from the center of the selected actors.\n"
+                        "Any Static Mesh within this radius is added as a blocking object.\n"
+                        "Press Enter to preview the radius sphere in the viewport for 3 seconds."))
                 ]
             ]
 
@@ -745,7 +750,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .Padding(FMargin(8.f, 5.f))
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("MatHdr", "Dust / Pigment"))
+                    .Text(LOCTEXT("MatHdr", "Dust / Rust"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
                     .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
                 ]
@@ -780,7 +785,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                             }
                             return FReply::Handled();
                         })
-                        .ToolTipText(LOCTEXT("TipDustCol", "먼지(sd) 색상. 클릭하면 컬러 피커가 열림."))
+                        .ToolTipText(LOCTEXT("TipDustCol", "Tint color for deposited dust. Click to open the color picker."))
                     ]
                 ]
             ]
@@ -805,12 +810,12 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                             DustTexture_ = Cast<UTexture2D>(Data.GetAsset());
                             if (DustTexture_) bDustUseTexture_ = true;
                         })
-                        .ToolTipText(LOCTEXT("TipDustTex", "먼지 색상에 곱해지는 디테일 텍스처."))
+                        .ToolTipText(LOCTEXT("TipDustTex", "Optional detail texture multiplied on top of the dust color for added surface variation."))
                     ]
                 ]
             ]
             + SScrollBox::Slot().Padding(8, 2)
-            [ SNew(STextBlock).Text(LOCTEXT("PigSectionLbl", "Pigment"))
+            [ SNew(STextBlock).Text(LOCTEXT("PigSectionLbl", "Rust"))
               .ColorAndOpacity(FLinearColor(0.75f, 0.75f, 0.75f, 1.f)) ]
             + SScrollBox::Slot().Padding(8, 2)
             [
@@ -839,7 +844,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                             }
                             return FReply::Handled();
                         })
-                        .ToolTipText(LOCTEXT("TipPigCol", "안료(sp) 색상. 클릭하면 컬러 피커가 열림."))
+                        .ToolTipText(LOCTEXT("TipPigCol", "Tint color for deposited rust. Click to open the color picker."))
                     ]
                 ]
             ]
@@ -864,16 +869,16 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                             PigmentTexture_ = Cast<UTexture2D>(Data.GetAsset());
                             if (PigmentTexture_) bPigmentUseTexture_ = true;
                         })
-                        .ToolTipText(LOCTEXT("TipPigTex", "안료 색상에 곱해지는 디테일 텍스처."))
+                        .ToolTipText(LOCTEXT("TipPigTex", "Optional detail texture multiplied on top of the rust color for added surface variation."))
                     ]
                 ]
             ]
             + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Dust Visibility"),
+            [ MakeRow(TEXT("Weathering Intensity"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
                 .Value_Lambda([this]() { return DustVisibility_; })
                 .OnValueChanged_Lambda([this](float V) { DustVisibility_ = V; })
-                .ToolTipText(LOCTEXT("TipDustVis", "풍화 색조 강도 (0~1)."))
+                .ToolTipText(LOCTEXT("TipDustVis", "Overall weathering color intensity. 0 = invisible, 1 = full effect. Use this as a master opacity for the weathering layer."))
             )]
 
             // ── Post-Process ──────────────────────────────────────────────────
@@ -894,7 +899,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 SNew(SSpinBox<float>).MinValue(0.01f).MaxValue(1.f).Delta(0.01f)
                 .Value_Lambda([this]() { return PostProcessConfig_.probabilistic_deposit; })
                 .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.probabilistic_deposit = v; })
-                .ToolTipText(LOCTEXT("TipDepRate", "침착 확률. 1.0 = 모든 ton 침착, 0.3 = 30%만 침착."))
+                .ToolTipText(LOCTEXT("TipDepRate", "Fraction of particles that actually deposit material. 1.0 = all deposit, 0.3 = only 30% deposit. Lower values add a grainy, sparse look."))
             )]
             + SScrollBox::Slot().Padding(8, 2)
             [
@@ -911,12 +916,14 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(0.9f).Delta(0.01f)
                 .Value_Lambda([this]() { return PostProcessConfig_.threshold; })
                 .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.threshold = v; })
+                .ToolTipText(LOCTEXT("TipThresh", "Deposit values below this level are cut to zero, sharpening the weathering boundary."))
             )]
             + SScrollBox::Slot().Padding(8, 2)
             [ MakeRow(TEXT("Steepness"),
                 SNew(SSpinBox<float>).MinValue(1.f).MaxValue(50.f).Delta(0.5f)
                 .Value_Lambda([this]() { return PostProcessConfig_.sigmoid_steepness; })
                 .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.sigmoid_steepness = v; })
+                .ToolTipText(LOCTEXT("TipSteep", "Controls the transition sharpness of the sigmoid contrast curve. Higher = harder edge between clean and weathered."))
             )]
             + SScrollBox::Slot().Padding(8, 2)
             [
@@ -933,24 +940,28 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 SNew(SSpinBox<float>).MinValue(0.5f).MaxValue(64.f).Delta(0.5f)
                 .Value_Lambda([this]() { return PostProcessConfig_.noise_scale; })
                 .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.noise_scale = v; })
+                .ToolTipText(LOCTEXT("TipNoiseScale", "Frequency of the fractal noise. Higher values create smaller, finer noise patches."))
             )]
             + SScrollBox::Slot().Padding(8, 2)
             [ MakeRow(TEXT("Octaves"),
                 SNew(SSpinBox<int32>).MinValue(1).MaxValue(8)
                 .Value_Lambda([this]() { return PostProcessConfig_.noise_octaves; })
                 .OnValueChanged_Lambda([this](int32 v) { PostProcessConfig_.noise_octaves = v; })
+                .ToolTipText(LOCTEXT("TipNoiseOct", "Number of fractal layers. More octaves add fine detail but increase compute time."))
             )]
             + SScrollBox::Slot().Padding(8, 2)
             [ MakeRow(TEXT("Strength"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                 .Value_Lambda([this]() { return PostProcessConfig_.noise_strength; })
                 .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.noise_strength = v; })
+                .ToolTipText(LOCTEXT("TipNoiseStr", "How strongly the noise mask modulates the final deposit. 0 = no noise, 1 = full noise variation."))
             )]
             + SScrollBox::Slot().Padding(8, 2)
             [ MakeRow(TEXT("Seed"),
                 SNew(SSpinBox<int32>).MinValue(0).MaxValue(999999)
                 .Value_Lambda([this]() { return (int32)PostProcessConfig_.noise_seed; })
                 .OnValueChanged_Lambda([this](int32 v) { PostProcessConfig_.noise_seed = (uint32_t)v; })
+                .ToolTipText(LOCTEXT("TipNoiseSeed", "Random seed for the noise pattern. Change this to get a different weathering texture variation."))
             )]
 
             // ── Debug ─────────────────────────────────────────────────────────
@@ -969,11 +980,22 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
             + SScrollBox::Slot().Padding(8, 2)
             [
                 SNew(SButton).HAlign(HAlign_Center)
-                .Text(LOCTEXT("TraceBtn", "Trace Single Ray"))
+                .Text(LOCTEXT("TraceBtn", "Preview Particle Path"))
                 .OnClicked(this, &SGammaTonPanel::OnTraceRayClicked)
                 .ToolTipText(LOCTEXT("TipTrace",
-                    "γ-ton 하나의 경로를 뷰포트에 시각화합니다.\n"
-                    "결과는 Output Log에서 확인할 수 있습니다."))
+                    "Trace a single particle path and draw it in the viewport.\n"
+                    "Useful for verifying source position and direction before running a full simulation.\n"
+                    "Detailed results are printed to the Output Log."))
+            ]
+            + SScrollBox::Slot().Padding(8, 2)
+            [
+                SNew(SButton).HAlign(HAlign_Center)
+                .Text(LOCTEXT("ClearPathBtn", "Clear Particle Path"))
+                .OnClicked_Lambda([this]() -> FReply {
+                    if (RayVisualizer_) RayVisualizer_->ClearPath();
+                    return FReply::Handled();
+                })
+                .ToolTipText(LOCTEXT("TipClearPath", "Remove the particle path visualization from the viewport."))
             ]
         ]
     ];
@@ -999,7 +1021,13 @@ GTGammaSource SGammaTonPanel::EntryToSource(const FTonTypeEntry& e) const
     GTGammaSource Src;
     Src.type        = (GTSourceType)e.SourceTypeIdx;
     Src.center      = { e.SrcCX, e.SrcCY, e.SrcCZ };
-    Src.direction   = GTVec3{ e.SrcDX, e.SrcDY, e.SrcDZ }.normalized();
+    {
+        float P = FMath::DegreesToRadians(e.SrcPitch);
+        float Y = FMath::DegreesToRadians(e.SrcYaw);
+        Src.direction = GTVec3{ FMath::Cos(P)*FMath::Cos(Y),
+                                FMath::Cos(P)*FMath::Sin(Y),
+                                FMath::Sin(P) }.normalized();
+    }
     Src.spread_deg  = e.SrcSpread;
     Src.area_half_x = e.SrcHalfX;
     Src.area_half_z = e.SrcHalfZ;
@@ -1035,8 +1063,9 @@ void SGammaTonPanel::SetTonTypes(const std::vector<GTTonType>& types)
         if (!t.sources.empty()) {
             const auto& src = t.sources[0];
             E->SourceTypeIdx = (int32)src.type;
-            E->SrcCX = src.center.x;     E->SrcCY = src.center.y;    E->SrcCZ = src.center.z;
-            E->SrcDX = src.direction.x;  E->SrcDY = src.direction.y; E->SrcDZ = src.direction.z;
+            E->SrcCX    = src.center.x;  E->SrcCY = src.center.y;  E->SrcCZ = src.center.z;
+            E->SrcPitch = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(src.direction.z, -1.f, 1.f)));
+            E->SrcYaw   = FMath::RadiansToDegrees(FMath::Atan2(src.direction.y, src.direction.x));
             E->SrcSpread = src.spread_deg;
             E->SrcHalfX  = src.area_half_x;
             E->SrcHalfZ  = src.area_half_z;
@@ -1063,7 +1092,7 @@ void SGammaTonPanel::RebuildTonTypesUI()
     auto MakeC = [](const FString& Lbl, TSharedRef<SWidget> Ctrl) -> TSharedRef<SWidget> {
         return SNew(SHorizontalBox)
             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-            [ SNew(SBox).WidthOverride(28.f) [ SNew(STextBlock).Text(FText::FromString(Lbl)) ] ]
+            [ SNew(SBox).WidthOverride(40.f) [ SNew(STextBlock).Text(FText::FromString(Lbl)) ] ]
             + SHorizontalBox::Slot().FillWidth(1.f) [ Ctrl ];
     };
 
@@ -1141,9 +1170,8 @@ void SGammaTonPanel::RebuildTonTypesUI()
             // ── Source (맨 위) ────────────────────────────────────────────────
             // ── Source ───────────────────────────────────────────────────────────
             static const TCHAR* SrcTypeDescs[] = {
-                TEXT("수평 영역에서 수직 하향으로 발사. CX/CY/CZ로 영역 중심, HalfX/HalfZ로 크기를 설정합니다. 빗물·분진 낙하 등 중력 방향 풍화에 적합합니다."),
-                TEXT("지정 방향으로 평행하게 발사. 방향 벡터(DX/DY/DZ)와 Spread로 빔 각도를 제어합니다. 바람에 의한 모래·소금 등 방향성 풍화에 적합합니다."),
-                TEXT("단일 점(CX/CY/CZ)에서 원뿔 형태로 발사. Spread로 원뿔 각도를 제어합니다. 파이프 누수·스포트라이트 등 국소 발생원에 적합합니다."),
+                TEXT("지정 방향으로 평행하게 발사. DX/DY/DZ = (0,0,-1) 이면 수직 낙하(비·낙진), 수평이면 바람·모래가 됩니다. Spread로 퍼짐 각도를 제어합니다."),
+                TEXT("단일 점(CX/CY/CZ)에서 원뿔 형태로 발사. Spread로 원뿔 각도를 제어합니다. 파이프 누수·국소 발생원에 적합합니다."),
                 TEXT("모든 방향에서 구 형태로 동시에 발사. HalfX가 구의 반지름입니다. 대기 산화·전방위 환경 풍화에 적합합니다."),
             };
 
@@ -1151,60 +1179,78 @@ void SGammaTonPanel::RebuildTonTypesUI()
             [ SNew(STextBlock).Text(LOCTEXT("SrcLbl", "  Source")).ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f)) ];
             CardBox->AddSlot().AutoHeight() [ MakeRow(TEXT("Type"), MakeSrcCombo()) ];
 
-            // Source type description
-            CardBox->AddSlot().AutoHeight().Padding(2, 2, 2, 4)
-            [
-                SNew(STextBlock)
-                .Font(GGetKorFont(8))
-                .AutoWrapText(true)
-                .ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f))
-                .Text_Lambda([Entry]() {
-                    int32 Idx = FMath::Clamp(Entry->SourceTypeIdx, 0, 3);
-                    return FText::FromString(SrcTypeDescs[Idx]);
-                })
-            ];
-
+            CardBox->AddSlot().AutoHeight().Padding(0, 4, 0, 1)
+            [ SNew(STextBlock).Text(FText::FromString(TEXT("  Position (cm)"))).ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ];
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CX"), MakePosEntryBox(Entry->SrcCX)) ]
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CY"), MakePosEntryBox(Entry->SrcCY)) ]
-                + SHorizontalBox::Slot().FillWidth(1.f) [ MakeC(TEXT("CZ"), MakePosEntryBox(Entry->SrcCZ)) ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [ MakeC(TEXT("X"), SNew(SNumericEntryBox<float>).AllowSpin(true)
+                    .MinValue(TOptional<float>()).MaxValue(TOptional<float>())
+                    .MinSliderValue(TOptional<float>()).MaxSliderValue(TOptional<float>())
+                    .LinearDeltaSensitivity(1).Delta(1.0f).ShiftMultiplier(0.1f).CtrlMultiplier(10.0f)
+                    .Value_Lambda([Entry]() { return TOptional<float>(Entry->SrcCX); })
+                    .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcCX = v; RefreshVisualizer(); })
+                    .OnValueCommitted_Lambda([this, Entry](float v, ETextCommit::Type) { Entry->SrcCX = v; RefreshVisualizer(); })
+                    .ToolTipText(LOCTEXT("TipSrcX", "Emission origin X position in world space (cm)."))) ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [ MakeC(TEXT("Y"), SNew(SNumericEntryBox<float>).AllowSpin(true)
+                    .MinValue(TOptional<float>()).MaxValue(TOptional<float>())
+                    .MinSliderValue(TOptional<float>()).MaxSliderValue(TOptional<float>())
+                    .LinearDeltaSensitivity(1).Delta(1.0f).ShiftMultiplier(0.1f).CtrlMultiplier(10.0f)
+                    .Value_Lambda([Entry]() { return TOptional<float>(Entry->SrcCY); })
+                    .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcCY = v; RefreshVisualizer(); })
+                    .OnValueCommitted_Lambda([this, Entry](float v, ETextCommit::Type) { Entry->SrcCY = v; RefreshVisualizer(); })
+                    .ToolTipText(LOCTEXT("TipSrcY", "Emission origin Y position in world space (cm)."))) ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [ MakeC(TEXT("Z"), SNew(SNumericEntryBox<float>).AllowSpin(true)
+                    .MinValue(TOptional<float>()).MaxValue(TOptional<float>())
+                    .MinSliderValue(TOptional<float>()).MaxSliderValue(TOptional<float>())
+                    .LinearDeltaSensitivity(1).Delta(1.0f).ShiftMultiplier(0.1f).CtrlMultiplier(10.0f)
+                    .Value_Lambda([Entry]() { return TOptional<float>(Entry->SrcCZ); })
+                    .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcCZ = v; RefreshVisualizer(); })
+                    .OnValueCommitted_Lambda([this, Entry](float v, ETextCommit::Type) { Entry->SrcCZ = v; RefreshVisualizer(); })
+                    .ToolTipText(LOCTEXT("TipSrcZ", "Emission origin Z height in world space (cm). Default 1400 cm places the source well above most actors."))) ]
             ];
 
-            // DX / DY / DZ — DIRECTIONAL, POINT 만 해당
+            // Direction (Pitch / Yaw) — DIRECTIONAL, POINT only
+            CardBox->AddSlot().AutoHeight().Padding(0, 4, 0, 1)
+            [
+                SNew(SBox)
+                .Visibility_Lambda([Entry]() {
+                    return (Entry->SourceTypeIdx == 0 || Entry->SourceTypeIdx == 1)
+                        ? EVisibility::Visible : EVisibility::Collapsed;
+                })
+                [ SNew(STextBlock).Text(FText::FromString(TEXT("  Direction (°)"))).ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
+            ];
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SBox)
                 .Visibility_Lambda([Entry]() {
-                    return (Entry->SourceTypeIdx == 1 || Entry->SourceTypeIdx == 2)
+                    return (Entry->SourceTypeIdx == 0 || Entry->SourceTypeIdx == 1)
                         ? EVisibility::Visible : EVisibility::Collapsed;
                 })
                 [
                     SNew(SHorizontalBox)
                     + SHorizontalBox::Slot().FillWidth(1.f)
                     [
-                        MakeC(TEXT("DX"), SNew(SSpinBox<float>)
-                            .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
-                            .Value_Lambda([Entry]() { return Entry->SrcDX; })
-                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDX = v; RefreshVisualizer(); })
-                            .ToolTipText(LOCTEXT("TipDX", "방향 벡터 X 성분 (-1 ~ 1)\n내부에서 자동 정규화됨.")))
+                        MakeC(TEXT("Pitch"), SNew(SSpinBox<float>)
+                            .MinValue(-90.f).MaxValue(90.f).Delta(1.f)
+                            .Value_Lambda([Entry]() { return Entry->SrcPitch; })
+                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcPitch = v; RefreshVisualizer(); })
+                            .ToolTipText(LOCTEXT("TipPitch",
+                                "Vertical emission angle.\n"
+                                "-90° = straight down  |  0° = horizontal  |  90° = straight up")))
                     ]
                     + SHorizontalBox::Slot().FillWidth(1.f)
                     [
-                        MakeC(TEXT("DY"), SNew(SSpinBox<float>)
-                            .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
-                            .Value_Lambda([Entry]() { return Entry->SrcDY; })
-                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDY = v; RefreshVisualizer(); })
-                            .ToolTipText(LOCTEXT("TipDY", "방향 벡터 Y 성분 (-1 ~ 1)\n내부에서 자동 정규화됨.")))
-                    ]
-                    + SHorizontalBox::Slot().FillWidth(1.f)
-                    [
-                        MakeC(TEXT("DZ"), SNew(SSpinBox<float>)
-                            .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
-                            .Value_Lambda([Entry]() { return Entry->SrcDZ; })
-                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDZ = v; RefreshVisualizer(); })
-                            .ToolTipText(LOCTEXT("TipDZ", "방향 벡터 Z 성분 (-1 ~ 1)\n예) (0,0,-1) = 아래 방향")))
+                        MakeC(TEXT("Yaw"), SNew(SSpinBox<float>)
+                            .MinValue(-180.f).MaxValue(180.f).Delta(1.f)
+                            .Value_Lambda([Entry]() { return Entry->SrcYaw; })
+                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcYaw = v; RefreshVisualizer(); })
+                            .ToolTipText(LOCTEXT("TipYaw",
+                                "Horizontal emission rotation.\n"
+                                "0° = +X  |  90° = +Y  |  ±180° = -X")))
                     ]
                 ]
             ];
@@ -1212,30 +1258,28 @@ void SGammaTonPanel::RebuildTonTypesUI()
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
-                // Spread — DIRECTIONAL(max180), POINT(max90) 만 해당
+                // Spread — POINT only (Spot Particle)
                 + SHorizontalBox::Slot().FillWidth(1.f)
                 [
                     SNew(SBox)
                     .Visibility_Lambda([Entry]() {
-                        return (Entry->SourceTypeIdx == 1 || Entry->SourceTypeIdx == 2)
+                        return (Entry->SourceTypeIdx == 1)
                             ? EVisibility::Visible : EVisibility::Collapsed;
                     })
                     [
                         MakeC(TEXT("Sprd"), SNew(SSpinBox<float>)
-                            .MinValue(0.f)
-                            .MaxValue_Lambda([Entry]() { return Entry->SourceTypeIdx == 2 ? 90.f : 180.f; })
-                            .Delta(1.f)
+                            .MinValue(0.f).MaxValue(90.f).Delta(1.f)
                             .Value_Lambda([Entry]() { return Entry->SrcSpread; })
                             .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcSpread = v; RefreshVisualizer(); })
-                            .ToolTipText(LOCTEXT("TipSprd", "발사 원뿔 반각 (deg).\nPOINT: 최대 90°  DIRECTIONAL: 최대 180°")))
+                            .ToolTipText(LOCTEXT("TipSprd", "Half-angle of the emission cone in degrees (max 90°).\nUse this to widen the spot from a focused beam to a broad cone.")))
                     ]
                 ]
-                // HalfX — AREA_TOP, DIRECTIONAL, ENVIRONMENT 만 해당 (POINT 숨김)
+                // HalfX — DIRECTIONAL, ENVIRONMENT 만 해당 (POINT 숨김)
                 + SHorizontalBox::Slot().FillWidth(1.f)
                 [
                     SNew(SBox)
                     .Visibility_Lambda([Entry]() {
-                        return (Entry->SourceTypeIdx != 2)
+                        return (Entry->SourceTypeIdx != 1)
                             ? EVisibility::Visible : EVisibility::Collapsed;
                     })
                     [
@@ -1244,17 +1288,17 @@ void SGammaTonPanel::RebuildTonTypesUI()
                             .Value_Lambda([Entry]() { return Entry->SrcHalfX; })
                             .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcHalfX = v; RefreshVisualizer(); })
                             .ToolTipText(LOCTEXT("TipHalfX",
-                                "방출 영역 반너비 (cm)\n"
-                                "· AREA_TOP / DIRECTIONAL: 직사각형 반폭\n"
-                                "· ENVIRONMENT: 구 반지름")))
+                                "Emission area half-width (cm).\n"
+                                "· Directional: rectangle half-width\n"
+                                "· Sky Particle: sphere radius")))
                     ]
                 ]
-                // HalfZ — AREA_TOP, DIRECTIONAL 만 해당
+                // HalfZ — DIRECTIONAL 만 해당
                 + SHorizontalBox::Slot().FillWidth(1.f)
                 [
                     SNew(SBox)
                     .Visibility_Lambda([Entry]() {
-                        return (Entry->SourceTypeIdx == 0 || Entry->SourceTypeIdx == 1)
+                        return (Entry->SourceTypeIdx == 0)
                             ? EVisibility::Visible : EVisibility::Collapsed;
                     })
                     [
@@ -1263,67 +1307,67 @@ void SGammaTonPanel::RebuildTonTypesUI()
                             .Value_Lambda([Entry]() { return Entry->SrcHalfZ; })
                             .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcHalfZ = v; RefreshVisualizer(); })
                             .ToolTipText(LOCTEXT("TipHalfZ",
-                                "방출 영역 반깊이 (cm)\n"
-                                "· AREA_TOP / DIRECTIONAL: 직사각형 종축 반폭")))
+                                "Emission area half-depth (cm).\n"
+                                "· Directional: rectangle half-depth along the perpendicular axis")))
                     ]
                 ]
             ];
 
             // ── Motion (Source 아래) ──────────────────────────────────────────
             CardBox->AddSlot().AutoHeight().Padding(0, 4, 0, 2)
-            [ SNew(STextBlock).Text(LOCTEXT("MotLbl", "  Motion  ks / kp / kf")).ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f)) ];
+            [ SNew(STextBlock).Text(LOCTEXT("MotLbl", "  Movement Mode")).ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f)) ];
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("ks"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                [ MakeC(TEXT("Scat"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                     .Value_Lambda([Entry]() { return Entry->MotionKs; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKs = v; })
-                    .ToolTipText(LOCTEXT("TipKs", "반구 반사 확률 (ks)\nks + kp + kf < 1 이면 나머지 확률로 정착."))
+                    .ToolTipText(LOCTEXT("TipKs", "Probability of a random scatter event. If Scatter + Bounce + Flow < 1, the remainder is the settle probability."))
                 )]
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("kp"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                [ MakeC(TEXT("Bnce"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                     .Value_Lambda([Entry]() { return Entry->MotionKp; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKp = v; })
-                    .ToolTipText(LOCTEXT("TipKp", "포물선 반사 확률 (kp)\n중력 영향을 받는 포물선 궤적으로 바운스."))
+                    .ToolTipText(LOCTEXT("TipKp", "Probability of a parabolic bounce. The particle arcs through the air under gravity before landing on a new surface."))
                 )]
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("kf"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                [ MakeC(TEXT("Flow"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                     .Value_Lambda([Entry]() { return Entry->MotionKf; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKf = v; })
-                    .ToolTipText(LOCTEXT("TipKf", "표면 흐름 확률 (kf)\n중력 접선 방향으로 표면을 따라 이동."))
+                    .ToolTipText(LOCTEXT("TipKf", "Probability of surface flow. The particle slides along the surface in the gravity-tangent direction, creating drip or streak effects."))
                 )]
             ];
 
             // ── Carrier ───────────────────────────────────────────────────────
             CardBox->AddSlot().AutoHeight().Padding(0, 4, 0, 2)
-            [ SNew(STextBlock).Text(LOCTEXT("CarLbl", "  Carrier  sd / sp / sr / sh")).ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f)) ];
+            [ SNew(STextBlock).Text(LOCTEXT("CarLbl", "  Particle Carries")).ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f)) ];
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("sd"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                [ MakeC(TEXT("Dust"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                     .Value_Lambda([Entry]() { return Entry->CarrierSD; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSD = v; })
-                    .ToolTipText(LOCTEXT("TipSD", "먼지/소일 밀도 (sd)."))
+                    .ToolTipText(LOCTEXT("TipSD", "Amount of dust carried by this particle type. Deposited as a grey/brown surface layer."))
                 )]
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("sp"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                [ MakeC(TEXT("Rust"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                     .Value_Lambda([Entry]() { return Entry->CarrierSP; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSP = v; })
-                    .ToolTipText(LOCTEXT("TipSP", "색소 (sp — pigment)."))
+                    .ToolTipText(LOCTEXT("TipSP", "Amount of rust / pigment carried. Deposited as a colored stain and can trigger rust-growth via Material Interactions."))
                 )]
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("sr"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                [ MakeC(TEXT("Rough"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                     .Value_Lambda([Entry]() { return Entry->CarrierSR; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSR = v; })
-                    .ToolTipText(LOCTEXT("TipSR", "거칠기 (sr — roughness)."))
+                    .ToolTipText(LOCTEXT("TipSR", "Roughness deposited on the surface. Higher values make the surface grittier and increase particle capture on subsequent passes."))
                 )]
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("sh"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                [ MakeC(TEXT("Moist"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                     .Value_Lambda([Entry]() { return Entry->CarrierSH; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSH = v; })
-                    .ToolTipText(LOCTEXT("TipSH", "습도 (sh — humidity)."))
+                    .ToolTipText(LOCTEXT("TipSH", "Moisture deposited on the surface. High moisture accelerates rust growth and enables biological effects via Material Interactions."))
                 )]
             ];
 
@@ -1337,7 +1381,7 @@ void SGammaTonPanel::RebuildTonTypesUI()
                     .Delta(0.1f)
                     .Value_Lambda([Entry]() { return Entry->Weight; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->Weight = FMath::Max(0.f, v); })
-                    .ToolTipText(LOCTEXT("TipWeight", "다른 Ton Type 대비 발사 비율.\n슬라이더 범위 0~10, 타이핑으로 최대 100까지 입력 가능."))
+                    .ToolTipText(LOCTEXT("TipWeight", "Relative emission weight compared to other particle types. A type with weight 2 emits twice as many particles as one with weight 1."))
                 )
             ];
 
@@ -1412,75 +1456,75 @@ void SGammaTonPanel::RebuildActorReflUI()
                 .ColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.5f, 1.f))
             ]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Δs  (ks decay)"),
+            [ MakeRow(TEXT("    Scatter Fade"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
                 .Value_Lambda([Entry]() { return Entry->DeltaS; })
                 .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaS = v; })
                 .ToolTipText(LOCTEXT("TipDeltaS",
-                    "ks(반구 반사) 감쇠율 — 바운스마다 ks를 이 값만큼 줄임.\n"
-                    "높을수록 입자가 빨리 정착 → 표면 근처에만 쌓임.\n"
-                    "0 = 감쇠 없음 (무한 반사), 1 = 첫 충돌에서 즉시 정착.\n"
-                    "권장: 0.3~0.7"))
+                    "How quickly scatter probability fades per bounce on this object.\n"
+                    "Higher values make particles settle sooner, concentrating deposits near the source.\n"
+                    "0 = no fade (infinite scatter), 1 = settles immediately on first contact.\n"
+                    "Recommended: 0.3–0.7"))
             )]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Δp  (kp decay)"),
+            [ MakeRow(TEXT("    Bounce Fade"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
                 .Value_Lambda([Entry]() { return Entry->DeltaP; })
                 .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaP = v; })
                 .ToolTipText(LOCTEXT("TipDeltaP",
-                    "kp(포물선 반사) 감쇠율 — 바운스마다 kp를 이 값만큼 줄임.\n"
-                    "감쇠된 kp는 kf(표면 흐름)로 전환됨 → 흐름 자국 형성.\n"
-                    "높을수록 포물선 궤적이 빨리 사라지고 흘러내림이 커짐.\n"
-                    "권장: 0.0~0.3"))
+                    "How quickly bounce probability fades per impact on this object.\n"
+                    "Faded bounce converts to surface flow, forming drip streaks.\n"
+                    "Higher values create more runoff and fewer hops.\n"
+                    "Recommended: 0.0–0.3"))
             )]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Δf  (kf decay)"),
+            [ MakeRow(TEXT("    Flow Fade"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
                 .Value_Lambda([Entry]() { return Entry->DeltaF; })
                 .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaF = v; })
                 .ToolTipText(LOCTEXT("TipDeltaF",
-                    "kf(표면 흐름) 감쇠율 — 흐름 이동마다 kf를 이 값만큼 줄임.\n"
-                    "높을수록 흐름 자국이 짧게 끊김.\n"
-                    "0 = 끊기지 않고 계속 흐름, 1 = 한 칸만 이동 후 정착.\n"
-                    "권장: 0.0~0.2"))
+                    "How quickly surface flow fades per step on this object.\n"
+                    "Higher values produce short, stubby streaks.\n"
+                    "0 = flows indefinitely, 1 = stops after a single step.\n"
+                    "Recommended: 0.0–0.2"))
             )]
             // ── 초기 재질값 (논문 §4 stain-bleeding) ─────────────────────────
             + SVerticalBox::Slot().AutoHeight().Padding(0, 3, 0, 0)
             [
                 SNew(STextBlock)
-                .Text(LOCTEXT("InitMatHdr", "    — Initial Material —"))
+                .Text(LOCTEXT("InitMatHdr", "    — Pre-existing Weathering —"))
                 .ColorAndOpacity(FLinearColor(0.6f, 0.75f, 0.6f, 1.f))
                 .ToolTipText(LOCTEXT("InitMatTip",
-                    "액터 표면의 초기 재질값 (시뮬레이션 시작 전 이미 존재하는 풍화).\n"
-                    "논문 §4 stain-bleeding: 체인에 이미 녹이 있어야 계단으로 번짐."))
+                    "Weathering already present on the surface before the simulation runs.\n"
+                    "For example, setting Starting Rust > 0 lets rust bleed onto adjacent surfaces from the very first step."))
             ]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    init sd (dust)"),
+            [ MakeRow(TEXT("    Starting Dust"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                 .Value_Lambda([Entry]() { return Entry->InitSD; })
                 .OnValueChanged_Lambda([Entry](float v) { Entry->InitSD = v; })
-                .ToolTipText(LOCTEXT("TipInitSD", "초기 먼지/소일 밀도. 0=없음, 1=완전히 덮임."))
+                .ToolTipText(LOCTEXT("TipInitSD", "Dust already covering this surface. 0 = clean, 1 = fully coated."))
             )]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    init sp (pigment)"),
+            [ MakeRow(TEXT("    Starting Rust"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                 .Value_Lambda([Entry]() { return Entry->InitSP; })
                 .OnValueChanged_Lambda([Entry](float v) { Entry->InitSP = v; })
-                .ToolTipText(LOCTEXT("TipInitSP", "초기 색소 (녹, 이끼 등). 체인에 이미 녹이 있으면 stain-bleeding 발생."))
+                .ToolTipText(LOCTEXT("TipInitSP", "Rust already on this surface. Pre-existing rust spreads onto connected surfaces from the first simulation step."))
             )]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    init sr (roughness)"),
+            [ MakeRow(TEXT("    Starting Roughness"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                 .Value_Lambda([Entry]() { return Entry->InitSR; })
                 .OnValueChanged_Lambda([Entry](float v) { Entry->InitSR = v; })
-                .ToolTipText(LOCTEXT("TipInitSR", "초기 거칠기. 높으면 γ-ton을 더 잘 잡아 풍화 가속."))
+                .ToolTipText(LOCTEXT("TipInitSR", "Surface roughness before simulation. Rougher surfaces capture more particles, accelerating weathering buildup."))
             )]
             + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    init sh (humidity)"),
+            [ MakeRow(TEXT("    Starting Moisture"),
                 SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
                 .Value_Lambda([Entry]() { return Entry->InitSH; })
                 .OnValueChanged_Lambda([Entry](float v) { Entry->InitSH = v; })
-                .ToolTipText(LOCTEXT("TipInitSH", "초기 습도. 높으면 이끼/녹 성장 가속 (Cross-Channel)."))
+                .ToolTipText(LOCTEXT("TipInitSH", "Moisture already on this surface. High starting moisture immediately activates rust growth and biological effects via Material Interactions."))
             )]
         ];
     }
@@ -1589,9 +1633,8 @@ void SGammaTonPanel::SaveSettings() const
         GConfig->SetFloat (S, *(P+TEXT("CX")),      E.SrcCX,          GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("CY")),      E.SrcCY,          GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("CZ")),      E.SrcCZ,          GEditorPerProjectIni);
-        GConfig->SetFloat (S, *(P+TEXT("DX")),      E.SrcDX,          GEditorPerProjectIni);
-        GConfig->SetFloat (S, *(P+TEXT("DY")),      E.SrcDY,          GEditorPerProjectIni);
-        GConfig->SetFloat (S, *(P+TEXT("DZ")),      E.SrcDZ,          GEditorPerProjectIni);
+        GConfig->SetFloat (S, *(P+TEXT("Pitch")),    E.SrcPitch,       GEditorPerProjectIni);
+        GConfig->SetFloat (S, *(P+TEXT("Yaw")),      E.SrcYaw,         GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("Sprd")),    E.SrcSpread,      GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("HX")),      E.SrcHalfX,       GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("HZ")),      E.SrcHalfZ,       GEditorPerProjectIni);
@@ -1672,9 +1715,8 @@ void SGammaTonPanel::LoadSettings()
             GConfig->GetFloat (S, *(P+TEXT("CX")),      E->SrcCX,         GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("CY")),      E->SrcCY,         GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("CZ")),      E->SrcCZ,         GEditorPerProjectIni);
-            GConfig->GetFloat (S, *(P+TEXT("DX")),      E->SrcDX,         GEditorPerProjectIni);
-            GConfig->GetFloat (S, *(P+TEXT("DY")),      E->SrcDY,         GEditorPerProjectIni);
-            GConfig->GetFloat (S, *(P+TEXT("DZ")),      E->SrcDZ,         GEditorPerProjectIni);
+            GConfig->GetFloat (S, *(P+TEXT("Pitch")),    E->SrcPitch,      GEditorPerProjectIni);
+            GConfig->GetFloat (S, *(P+TEXT("Yaw")),      E->SrcYaw,        GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("Sprd")),    E->SrcSpread,     GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("HX")),      E->SrcHalfX,      GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("HZ")),      E->SrcHalfZ,      GEditorPerProjectIni);
@@ -1693,6 +1735,11 @@ FReply SGammaTonPanel::OnRunClicked()
 
     if (Actors.IsEmpty()) {
         SetStatus(TEXT("No actors selected."));
+        if (ResultText_.IsValid()) {
+            ResultText_->SetText(LOCTEXT("ResultNoActors",
+                "No actors selected.\nSelect one or more Static Mesh actors in the Outliner, then press Apply Weathering."));
+            ResultText_->SetColorAndOpacity(FLinearColor(0.9f, 0.6f, 0.2f, 1.f));
+        }
         return FReply::Handled();
     }
 
@@ -1877,11 +1924,18 @@ FReply SGammaTonPanel::OnRunClicked()
             Log += FString::Printf(TEXT("  Carrier: sd=%.3f  sp=%.3f  sr=%.3f  sh=%.3f\n"),
                 E.CarrierSD, E.CarrierSP, E.CarrierSR, E.CarrierSH);
             int32 SrcIdx = FMath::Clamp(E.SourceTypeIdx, 0, 3);
-            Log += FString::Printf(
-                TEXT("  Source : %s  center=(%.0f,%.0f,%.0f)  dir=(%.2f,%.2f,%.2f)  spread=%.1f deg\n"),
-                SrcNames[SrcIdx],
-                E.SrcCX, E.SrcCY, E.SrcCZ,
-                E.SrcDX, E.SrcDY, E.SrcDZ, E.SrcSpread);
+            {
+                float Pr = FMath::DegreesToRadians(E.SrcPitch);
+                float Yr = FMath::DegreesToRadians(E.SrcYaw);
+                float DX = FMath::Cos(Pr)*FMath::Cos(Yr);
+                float DY = FMath::Cos(Pr)*FMath::Sin(Yr);
+                float DZ = FMath::Sin(Pr);
+                Log += FString::Printf(
+                    TEXT("  Source : %s  center=(%.0f,%.0f,%.0f)  pitch=%.1f yaw=%.1f  dir=(%.2f,%.2f,%.2f)  spread=%.1f deg\n"),
+                    SrcNames[SrcIdx],
+                    E.SrcCX, E.SrcCY, E.SrcCZ,
+                    E.SrcPitch, E.SrcYaw, DX, DY, DZ, E.SrcSpread);
+            }
         }
         Log += TEXT("\n");
 
