@@ -1,4 +1,14 @@
 ## 2026CapstoneDesign_08_01
+# gamma-ton 플러그인 설치 방법
+
+`Plugins/GammaTon/Docs`에서 논문 관련, 코드 관련 문서를 참고해주시면 됩니다.
+
+1. 언리얼 엔진 5.7 C++ 프로젝트를 생성합니다.
+2. 생성된 프로젝트 폴더 내에 현재 레포에 있는 ./Plugins 폴더를 붙여넣습니다.
+3. `.uproject` 폴더 우클릭 > `Generate Visual Studio Project files`
+4. `.sln` 솔루션 파일을 열고 컴파일을 진행합니다.
+
+# 2026CapstoneDesign_08_01
 
 
 경희대학교 2026 캡스톤디자인 08분반 01팀 협업 환경입니다.
