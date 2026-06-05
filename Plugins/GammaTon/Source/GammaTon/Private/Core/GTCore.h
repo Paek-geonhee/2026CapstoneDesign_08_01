@@ -299,10 +299,10 @@ struct GTTon {
 
 // ── Source types ──────────────────────────────────────────────────────────────
 
-enum class GTSourceType { AREA_TOP, DIRECTIONAL, POINT, ENVIRONMENT };
+enum class GTSourceType { DIRECTIONAL, POINT, ENVIRONMENT };
 
 struct GTGammaSource {
-    GTSourceType type        = GTSourceType::AREA_TOP;
+    GTSourceType type        = GTSourceType::DIRECTIONAL;
     GTVec3       center      = {0.0f, 0.0f, 1400.0f};  // Z-up (UE coords, cm)
     GTVec3       direction   = {0.0f, 0.0f, -1.0f};    // downward
     float        spread_deg  = 5.0f;

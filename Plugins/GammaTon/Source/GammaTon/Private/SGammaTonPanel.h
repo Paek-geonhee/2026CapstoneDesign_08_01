@@ -54,7 +54,7 @@ private:
 
     // ── Ton Types (P2-D: multiple simultaneous γ-ton types) ───────────────
     struct FTonTypeEntry {
-        FString Name   = TEXT("Ton Type");
+        FString Name   = TEXT("Particle Type");
         float   Weight = 1.0f;
         // Initial motion probabilities
         float MotionKs = 0.5f, MotionKp = 0.0f, MotionKf = 0.2f;
@@ -63,7 +63,7 @@ private:
         // Source
         int32 SourceTypeIdx = 0;
         float SrcCX = 0.0f, SrcCY = 0.0f, SrcCZ = 1400.0f;
-        float SrcDX = 0.0f, SrcDY = 0.0f, SrcDZ = -1.0f;
+        float SrcPitch = -90.0f, SrcYaw = 0.0f;  // degrees, UE convention
         float SrcSpread = 5.0f, SrcHalfX = 500.0f, SrcHalfZ = 500.0f;
         // Collapse state — toggled by the card header button
         bool bCollapsed = false;

@@ -33,7 +33,6 @@ void FGammaTonSourceVisualizer::Tick(float DeltaTime)
         {
             switch (S.type)
             {
-            case GTSourceType::AREA_TOP:    DrawAreaTop(W, S);     break;
             case GTSourceType::DIRECTIONAL: DrawDirectional(W, S); break;
             case GTSourceType::POINT:       DrawPoint(W, S);       break;
             case GTSourceType::ENVIRONMENT: DrawEnvironment(W, S); break;
