@@ -77,26 +77,26 @@ Plugins
 
     
 ## Sequence
-> Step 1. Generating Weathered Texture
+ Step 1. Generating Weathered Texture
 (이미지)
->> 감마톤 시뮬레이션 툴을 이용해 지정된 스태틱 메쉬에 대한 풍화된 텍스처를 생성합니다. 원하는 시뮬레이션 프리셋을 그대로 활용하거나, 원하는 파라미터를 조정하여 사용할 수 있습니다.
+> 감마톤 시뮬레이션 툴을 이용해 지정된 스태틱 메쉬에 대한 풍화된 텍스처를 생성합니다. 원하는 시뮬레이션 프리셋을 그대로 활용하거나, 원하는 파라미터를 조정하여 사용할 수 있습니다.
 
->> 생성된 결과물 중, BaseColor, Specular, Roughness에 해당하는 텍스처가 png 형태로 저장되어 Weathering Trajectory 생성에 활용됩니다.
+> 생성된 결과물 중, BaseColor, Specular, Roughness에 해당하는 텍스처가 png 형태로 저장되어 Weathering Trajectory 생성에 활용됩니다.
 
->> Step 1 의 결과물만 활용하고 싶은 경우 다음 스텝을 진행할 필요가 없습니다.
+> Step 1 의 결과물만 활용하고 싶은 경우 다음 스텝을 진행할 필요가 없습니다.
 
-> Step 2. Generating Weathering Trajectory
+ Step 2. Generating Weathering Trajectory
 (이미지)
->> 풍화 상태가 공존하는 텍스처로부터 풍화 경로를 추론합니다. 
+> 풍화 상태가 공존하는 텍스처로부터 풍화 경로를 추론합니다. 
 
->> Weathering Manager Component를 풍화 시물레이션을 수행하려는 액터에 부착하고, 기본 풍화 상태의 텍스처를 할당한 뒤 감마톤 결과물을 새 키프레임으로 등록합니다. ( 풍화 경로 생성을 위해선 키프레임이 둘 이상 필요합니다.)
+> Weathering Manager Component를 풍화 시물레이션을 수행하려는 액터에 부착하고, 기본 풍화 상태의 텍스처를 할당한 뒤 감마톤 결과물을 새 키프레임으로 등록합니다. ( 풍화 경로 생성을 위해선 키프레임이 둘 이상 필요합니다.)
 
->> 이후 풍화 경로 생성을 수행합니다. 생성된 결과물은 바이너리 형태로 저장됩니다. (풍화 경로, 키프레임 등)
+> 이후 풍화 경로 생성을 수행합니다. 생성된 결과물은 바이너리 형태로 저장됩니다. (풍화 경로, 키프레임 등)
 
-> Step 3. Interpolating between Key Texture on trajectory
+ Step 3. Interpolating between Key Texture on trajectory
 (GIF)
->> Component에 지정된 키프레임과 Weathering Trajectory를 기반으로 적절한 Step에 해당하는 중간 프레임을 생성, 메쉬에 적용합니다.
+> Component에 지정된 키프레임과 Weathering Trajectory를 기반으로 적절한 Step에 해당하는 중간 프레임을 생성, 메쉬에 적용합니다.
 
->> 적절한 키프레임과 WT가 존재하고, 풍화 프로퍼티를 적절히 할당했다면, 인게임에서 즉시 풍화 시뮬레이션이 수행됩니다.
+> 적절한 키프레임과 WT가 존재하고, 풍화 프로퍼티를 적절히 할당했다면, 인게임에서 즉시 풍화 시뮬레이션이 수행됩니다.
 
 
