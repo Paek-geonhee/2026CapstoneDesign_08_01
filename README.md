@@ -1,4 +1,4 @@
-## 2026CapstoneDesign_08_01
+﻿## 2026CapstoneDesign_08_01
 # gamma-ton 플러그인 설치 방법
 
 `Plugins/GammaTon/Docs`에서 논문 관련, 코드 관련 문서를 참고해주시면 됩니다.
@@ -94,9 +94,10 @@ Plugins
 > 이후 풍화 경로 생성을 수행합니다. 생성된 결과물은 바이너리 형태로 저장됩니다. (풍화 경로, 키프레임 등)
 
  Step 3. Interpolating between Key Texture on trajectory
-(GIF)
+![Runtime Weathering Interpolation Sequence](Plugins/Docs/Images/weathering_interpolation_sequence_grid.jpg)
 > Component에 지정된 키프레임과 Weathering Trajectory를 기반으로 적절한 Step에 해당하는 중간 프레임을 생성, 메쉬에 적용합니다.
 
 > 적절한 키프레임과 WT가 존재하고, 풍화 프로퍼티를 적절히 할당했다면, 인게임에서 즉시 풍화 시뮬레이션이 수행됩니다.
+
 
 
