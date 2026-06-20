@@ -15,6 +15,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/SBoxPanel.h"
 #include "Editor.h"
 #include "Selection.h"
@@ -79,9 +80,8 @@ struct FGTScenario {
 static const FGTScenario GScenarios[] = {
     // ── 0  Custom ─────────────────────────────────────────────────────────────
     { TEXT("Custom"),
-      TEXT("No preset applied. Configure every parameter manually. "
-           "Use this when you need precise control or are experimenting with a new weathering type."),
-      TEXT("Manual  ·  all parameters editable"),
+      TEXT("Set every parameter manually. Use for precise control or experimenting with new weathering types."),
+      TEXT(""),
       30000, 10, 0.50f, 30.f, 20,
       0.5f, 0.0f, 0.2f,  0.5f, 0.0f, 0.0f,  50.f,
       1.f, 0.f, 0.f, 0.f,
@@ -91,11 +91,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 1  Stain Bleeding ─────────────────────────────────────────────────────
     { TEXT("Stain Bleeding"),
-      TEXT("Pigment bounces off the surface, then drains along it under gravity, "
-           "pooling in joints, cracks, and lower edges. "
-           "Reproduces rust streaks, water stains, or paint runoff draining downward. "
-           "(Paper example, §3.5)"),
-      TEXT("Single-ton  ·  AREA_TOP  ·  kp → kf dominant  ·  strong flow"),
+      TEXT("For rust streaks, paint runoff, or any liquid that drains downward along surfaces."),
+      TEXT(""),
       40000, 15, 0.45f, 35.f, 30,
       0.0f, 0.8f, 0.2f,  0.0f, 0.4f, 0.05f,  60.f,
       0.0f, 0.9f, 0.05f, 0.15f,
@@ -105,11 +102,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 2  Metallic Patina ────────────────────────────────────────────────────
     { TEXT("Metallic Patina"),
-      TEXT("Atmospheric oxidation arriving from all directions simultaneously. "
-           "Tons reflect many times before settling, building up a green-blue patina "
-           "concentrated on upward-facing and exposed metal surfaces. "
-           "(Paper example, §3.5)"),
-      TEXT("Single-ton  ·  ENVIRONMENT  ·  reflection-dominant  ·  pigment-only carrier"),
+      TEXT("For outdoor metal exposed to air — copper roofs, bronze statues, iron railings."),
+      TEXT(""),
       50000, 20, 0.30f, 20.f, 40,
       1.0f, 0.0f, 0.0f,  0.15f, 0.0f, 0.0f,  50.f,
       0.0f, 1.0f, 0.2f, 0.0f,
@@ -119,11 +113,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 3  Urban Rain ─────────────────────────────────────────────────────────
     { TEXT("Urban Rain"),
-      TEXT("Two weathering agents simulate the layered grime on city buildings: "
-           "vertical rainfall that flows down facades depositing dirt in crevices, "
-           "and a separate wind-blown dust/soot stream arriving from the side. "
-           "Cross-channel humidity decay keeps wet areas visually distinct."),
-      TEXT("Multi-ton  ·  AREA_TOP + DIRECTIONAL  ·  high humidity  ·  dual deposit"),
+      TEXT("For city buildings with both rainfall grime and side-wind dust or soot layered together."),
+      TEXT(""),
       50000, 12, 0.35f, 50.f, 30,
       0.15f, 0.1f, 0.65f,  0.4f, 0.1f, 0.05f,  50.f,
       0.3f, 0.05f, 0.0f, 0.85f,
@@ -133,11 +124,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 4  Desert Sand ────────────────────────────────────────────────────────
     { TEXT("Desert Sand"),
-      TEXT("Wind-driven sand particles arrive from the side at a shallow angle, "
-           "bouncing off hard surfaces before settling. "
-           "Warm tan grit accumulates on windward faces, ledges, and any surface "
-           "that intercepts the flow; sheltered areas stay relatively clean."),
-      TEXT("Single-ton  ·  DIRECTIONAL  ·  kp-dominant  ·  side wind  ·  high dust"),
+      TEXT("For objects exposed to a side wind carrying sand or fine dust."),
+      TEXT(""),
       40000, 14, 0.45f, 20.f, 25,
       0.50f, 0.30f, 0.1f,  0.4f, 0.2f, 0.05f,  40.f,
       1.0f, 0.25f, 0.1f, 0.0f,
@@ -147,11 +135,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 5  Industrial Soot ────────────────────────────────────────────────────
     { TEXT("Industrial Soot"),
-      TEXT("Airborne carbon particles fall from above and bounce multiple times "
-           "before settling. Dark grey-black coating builds up uniformly on "
-           "horizontal ledges and any upward-facing geometry. "
-           "Use for chimneys, factory rooftops, or urban structures near heavy industry."),
-      TEXT("Single-ton  ·  AREA_TOP  ·  kp-dominant  ·  dark pigment  ·  high dust"),
+      TEXT("For structures near chimneys or factories with dark deposits on top and ledge surfaces."),
+      TEXT(""),
       45000, 16, 0.40f, 25.f, 25,
       0.40f, 0.40f, 0.1f,  0.35f, 0.15f, 0.05f,  45.f,
       0.6f, 0.95f, 0.15f, 0.0f,
@@ -161,11 +146,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 6  Pipe Drip ──────────────────────────────────────────────────────────
     { TEXT("Pipe Drip"),
-      TEXT("A single point source simulates a leaking pipe or joint dripping water. "
-           "High surface-flow probability means tons travel far down the geometry, "
-           "building a narrow rust-and-mineral streak directly below the leak. "
-           "Roughness (sr) picked up from the surface amplifies surface detail."),
-      TEXT("Single-ton  ·  POINT  ·  kf-dominant  ·  high humidity  ·  rust growth"),
+      TEXT("For a narrow rust or mineral streak forming below a leaking pipe or joint."),
+      TEXT(""),
       30000, 15, 0.55f, 40.f, 25,
       0.05f, 0.05f, 0.8f,  0.3f, 0.1f, 0.05f,  50.f,
       0.2f, 0.5f, 0.05f, 0.95f,
@@ -175,11 +157,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 7  Biological Growth ──────────────────────────────────────────────────
     { TEXT("Biological Growth"),
-      TEXT("Two agents work together: moisture flows into low and concave areas, "
-           "and moss spores settle preferentially where surfaces remain damp. "
-           "Rapid humidity decay prevents oversaturation on exposed faces, "
-           "so green growth concentrates realistically in shaded crevices and corners."),
-      TEXT("Multi-ton  ·  AREA_TOP + ENVIRONMENT  ·  very high flow  ·  humidity-gated"),
+      TEXT("For moss or biofilm forming in damp, shaded crevices and recesses."),
+      TEXT(""),
       50000, 12, 0.35f, 55.f, 40,
       0.1f, 0.05f, 0.92f,  0.3f, 0.05f, 0.05f,  50.f,
       0.05f, 0.7f, 0.0f, 0.95f,
@@ -189,11 +168,8 @@ static const FGTScenario GScenarios[] = {
 
     // ── 8  Coastal Salt Spray ─────────────────────────────────────────────────
     { TEXT("Coastal Salt Spray"),
-      TEXT("Sea wind carries salt crystals from the side at a low angle. "
-           "Windward surfaces are roughened (sr) by crystal abrasion and coated "
-           "with pale white mineral deposits. Sheltered faces and recesses "
-           "receive far less exposure, creating strong directional contrast."),
-      TEXT("Single-ton  ·  DIRECTIONAL  ·  side wind  ·  high roughness  ·  white tint"),
+      TEXT("For windward surfaces near the sea coated with pale salt crystal deposits."),
+      TEXT(""),
       40000, 12, 0.40f, 20.f, 25,
       0.5f, 0.3f, 0.1f,  0.4f, 0.15f, 0.05f,  40.f,
       0.85f, 0.15f, 0.5f, 0.25f,
@@ -432,7 +408,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                     .Font(GGetKorFont(9))
                     .ColorAndOpacity(FLinearColor(0.55f, 0.65f, 0.80f, 1.f))
                     .AutoWrapText(true)
-                    .Text(LOCTEXT("ResultReady", "Ready.  Select actors and press Run."))
+                    .Text(LOCTEXT("ResultReady", "Ready.  Select actors and press Apply Weathering."))
                 ]
             ]
 
@@ -441,17 +417,17 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
             [
                 SNew(SBorder)
                 .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
+                .Padding(FMargin(10.f, 7.f))
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("ScnHeader", "Scenario Preset"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                    .Text(LOCTEXT("ScnHeader", "Scenario"))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 11))
                     .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
                 ]
             ]
             + SScrollBox::Slot().Padding(8, 2)
             [
-                MakeRow(TEXT("Scenario"),
+                MakeRow(TEXT("Preset"),
                     SNew(SComboBox<TSharedPtr<FString>>)
                     .OptionsSource(&ScenarioOptions_)
                     .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Item, ESelectInfo::Type) {
@@ -468,28 +444,167 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                     ]
                 )
             ]
-            + SScrollBox::Slot().Padding(8, 2)
+            + SScrollBox::Slot().Padding(12, 2, 12, 4)
+            [
+                SNew(STextBlock).Font(GGetKorFont(8)).AutoWrapText(true)
+                .ColorAndOpacity(FLinearColor(0.60f, 0.60f, 0.60f, 1.f))
+                .Text_Lambda([this]() {
+                    return FText::FromString(GScenarios[FMath::Clamp(ScenarioIdx, 0, GNumScenarios-1)].Desc);
+                })
+            ]
+
+            // ── Dust / Rust (Scenario 바로 아래) ─────────────────────────────
+            + SScrollBox::Slot().Padding(4, 8, 4, 0)
             [
                 SNew(SBorder)
-                .BorderBackgroundColor(FLinearColor(0.08f, 0.10f, 0.14f, 1.f))
+                .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
                 .Padding(FMargin(10.f, 7.f))
                 [
-                    SNew(SVerticalBox)
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 4)
+                    SNew(STextBlock)
+                    .Text(LOCTEXT("MatHdr2", "Dust / Rust"))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 11))
+                    .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
+                ]
+            ]
+            + SScrollBox::Slot().Padding(8, 4)
+            [ MakeRow(TEXT("Weathering Amount"),
+                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).MinSliderValue(0.f).MaxSliderValue(1.f).Delta(0.01f)
+                .Value_Lambda([this]() { return WeatheringAmount_; })
+                .OnValueChanged_Lambda([this](float v) { WeatheringAmount_ = v; })
+                .ToolTipText(LOCTEXT("TipWeatheringAmt2",
+                    "Overall weathering intensity.\n"
+                    "0 = almost no deposit  ·  1 = maximum accumulation and full color effect.\n"
+                    "Drives deposit rate, accumulation strength, and color intensity together."))
+            )]
+            + SScrollBox::Slot().Padding(8, 6, 8, 0)
+            [
+                SNew(SBorder)
+                .BorderBackgroundColor(FLinearColor(0.10f, 0.10f, 0.16f, 1.f))
+                .Padding(FMargin(6.f, 3.f))
+                [
+                    SNew(STextBlock)
+                    .Text(LOCTEXT("DustSectionLbl2", "Dust"))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                    .ColorAndOpacity(FLinearColor(0.78f, 0.78f, 0.78f, 1.f))
+                ]
+            ]
+            + SScrollBox::Slot().Padding(8, 2)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 8, 0)
+                [
+                    SNew(SCheckBox)
+                    .IsChecked_Lambda([this]() { return !bDustUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bDustUseTexture_ = false; })
+                    [ SNew(STextBlock).Text(LOCTEXT("DustColorLbl2", "Color")) ]
+                ]
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 12, 0)
+                [
+                    SNew(SCheckBox)
+                    .IsChecked_Lambda([this]() { return bDustUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bDustUseTexture_ = true; })
+                    [ SNew(STextBlock).Text(LOCTEXT("DustTexLbl2", "Texture")) ]
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    SNew(SBox)
+                    .Visibility_Lambda([this]() { return !bDustUseTexture_ ? EVisibility::Visible : EVisibility::Collapsed; })
                     [
-                        SNew(STextBlock).Font(GGetKorFont(8))
-                        .ColorAndOpacity(FLinearColor(0.55f, 0.75f, 1.0f, 1.f))
-                        .Text_Lambda([this]() {
-                            return FText::FromString(GScenarios[FMath::Clamp(ScenarioIdx, 0, GNumScenarios-1)].Tags);
+                        SNew(SColorBlock)
+                        .Color_Lambda([this]() { return ScenarioDustColor; })
+                        .OnMouseButtonDown_Lambda([this](const FGeometry&, const FPointerEvent& E) -> FReply {
+                            if (!bDustUseTexture_ && E.GetEffectingButton() == EKeys::LeftMouseButton) {
+                                FColorPickerArgs Args;
+                                Args.bIsModal = true; Args.bUseAlpha = false;
+                                Args.InitialColor = ScenarioDustColor;
+                                Args.OnColorCommitted = FOnLinearColorValueChanged::CreateLambda(
+                                    [this](FLinearColor C) { ScenarioDustColor = C; });
+                                OpenColorPicker(Args);
+                            }
+                            return FReply::Handled();
                         })
+                        .ToolTipText(LOCTEXT("TipDustCol2", "Tint color for deposited dust. Click to open the color picker."))
                     ]
-                    + SVerticalBox::Slot().AutoHeight()
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    SNew(SBox)
+                    .Visibility_Lambda([this]() { return bDustUseTexture_ ? EVisibility::Visible : EVisibility::Collapsed; })
                     [
-                        SNew(STextBlock).Font(GGetKorFont(9)).AutoWrapText(true)
-                        .ColorAndOpacity(FLinearColor(0.80f, 0.80f, 0.80f, 1.f))
-                        .Text_Lambda([this]() {
-                            return FText::FromString(GScenarios[FMath::Clamp(ScenarioIdx, 0, GNumScenarios-1)].Desc);
+                        SNew(SObjectPropertyEntryBox)
+                        .AllowedClass(UTexture2D::StaticClass()).AllowClear(true)
+                        .ObjectPath_Lambda([this]() { return DustTexture_ ? DustTexture_->GetPathName() : FString(); })
+                        .OnObjectChanged_Lambda([this](const FAssetData& Data) {
+                            DustTexture_ = Cast<UTexture2D>(Data.GetAsset());
+                            if (DustTexture_) bDustUseTexture_ = true;
                         })
+                        .ToolTipText(LOCTEXT("TipDustTex2", "Optional detail texture multiplied on top of the dust color."))
+                    ]
+                ]
+            ]
+            + SScrollBox::Slot().Padding(8, 6, 8, 0)
+            [
+                SNew(SBorder)
+                .BorderBackgroundColor(FLinearColor(0.10f, 0.10f, 0.16f, 1.f))
+                .Padding(FMargin(6.f, 3.f))
+                [
+                    SNew(STextBlock)
+                    .Text(LOCTEXT("PigSectionLbl2", "Rust"))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                    .ColorAndOpacity(FLinearColor(0.78f, 0.78f, 0.78f, 1.f))
+                ]
+            ]
+            + SScrollBox::Slot().Padding(8, 2)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 8, 0)
+                [
+                    SNew(SCheckBox)
+                    .IsChecked_Lambda([this]() { return !bPigmentUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bPigmentUseTexture_ = false; })
+                    [ SNew(STextBlock).Text(LOCTEXT("PigColorLbl2", "Color")) ]
+                ]
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 12, 0)
+                [
+                    SNew(SCheckBox)
+                    .IsChecked_Lambda([this]() { return bPigmentUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bPigmentUseTexture_ = true; })
+                    [ SNew(STextBlock).Text(LOCTEXT("PigTexLbl2", "Texture")) ]
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    SNew(SBox)
+                    .Visibility_Lambda([this]() { return !bPigmentUseTexture_ ? EVisibility::Visible : EVisibility::Collapsed; })
+                    [
+                        SNew(SColorBlock)
+                        .Color_Lambda([this]() { return ScenarioPigmentColor; })
+                        .OnMouseButtonDown_Lambda([this](const FGeometry&, const FPointerEvent& E) -> FReply {
+                            if (!bPigmentUseTexture_ && E.GetEffectingButton() == EKeys::LeftMouseButton) {
+                                FColorPickerArgs Args;
+                                Args.bIsModal = true; Args.bUseAlpha = false;
+                                Args.InitialColor = ScenarioPigmentColor;
+                                Args.OnColorCommitted = FOnLinearColorValueChanged::CreateLambda(
+                                    [this](FLinearColor C) { ScenarioPigmentColor = C; });
+                                OpenColorPicker(Args);
+                            }
+                            return FReply::Handled();
+                        })
+                        .ToolTipText(LOCTEXT("TipPigCol2", "Tint color for deposited rust. Click to open the color picker."))
+                    ]
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    SNew(SBox)
+                    .Visibility_Lambda([this]() { return bPigmentUseTexture_ ? EVisibility::Visible : EVisibility::Collapsed; })
+                    [
+                        SNew(SObjectPropertyEntryBox)
+                        .AllowedClass(UTexture2D::StaticClass()).AllowClear(true)
+                        .ObjectPath_Lambda([this]() { return PigmentTexture_ ? PigmentTexture_->GetPathName() : FString(); })
+                        .OnObjectChanged_Lambda([this](const FAssetData& Data) {
+                            PigmentTexture_ = Cast<UTexture2D>(Data.GetAsset());
+                            if (PigmentTexture_) bPigmentUseTexture_ = true;
+                        })
+                        .ToolTipText(LOCTEXT("TipPigTex2", "Optional detail texture multiplied on top of the rust color."))
                     ]
                 ]
             ]
@@ -499,11 +614,11 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
             [
                 SNew(SBorder)
                 .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
+                .Padding(FMargin(10.f, 7.f))
                 [
                     SNew(STextBlock)
                     .Text(LOCTEXT("SimHeader", "Simulation"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 11))
                     .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
                 ]
             ]
@@ -534,14 +649,6 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                         "More steps build up thicker weathering layers and smoother gradients."))
                 ]
             ]
-            // Deposit K
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Accumulation Strength"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).MinSliderValue(0.f).MaxSliderValue(1.f).Delta(0.01f)
-                .Value_Lambda([this]() { return DepositK; })
-                .OnValueChanged_Lambda([this](float v) { DepositK = v; })
-                .ToolTipText(LOCTEXT("TipDeposit", "Global deposit scale per particle. 0 = no deposit, 1 = maximum accumulation."))
-            )]
             + SScrollBox::Slot().Padding(8, 2)
             [ MakeRow(TEXT("Texture size (px)"),
                 SNew(SNumericEntryBox<int32>).AllowSpin(false)
@@ -549,30 +656,24 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .OnValueCommitted_Lambda([this](int32 v, ETextCommit::Type) { TextureSize = FMath::Max(1, v); })
                 .ToolTipText(LOCTEXT("TipTex", "Output texture resolution in pixels. Recommended: 512–2048. Larger values give sharper detail but use more memory."))
             )]
-            // Advanced toggle button
-            + SScrollBox::Slot().Padding(12, 6, 12, 2)
+            + SScrollBox::Slot().Padding(8, 6, 8, 0)
             [
-                SNew(SButton).HAlign(HAlign_Left)
-                .ButtonStyle(FAppStyle::Get(), "NoBorder")
-                .OnClicked_Lambda([this]() -> FReply {
-                    bSimAdvancedExpanded_ = !bSimAdvancedExpanded_;
-                    return FReply::Handled();
-                })
+                SNew(SExpandableArea)
+                .BorderImage(FCoreStyle::Get().GetBrush("Border"))
+                .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
+                .BodyBorderImage(FCoreStyle::Get().GetBrush("Border"))
+                .BodyBorderBackgroundColor(FLinearColor(0.08f, 0.08f, 0.12f, 1.f))
+                .HeaderPadding(FMargin(4.f, 4.f))
+                .Padding(FMargin(4.f, 2.f, 4.f, 4.f))
+                .InitiallyCollapsed(true)
+                .HeaderContent()
                 [
                     SNew(STextBlock)
-                    .ColorAndOpacity(FLinearColor(0.5f, 0.7f, 1.f, 1.f))
-                    .Text_Lambda([this]() {
-                        return FText::FromString(bSimAdvancedExpanded_
-                            ? TEXT("▼  Advanced") : TEXT("▶  Advanced"));
-                    })
+                    .Text(LOCTEXT("SimAdvHdr", "Advanced"))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                    .ColorAndOpacity(FLinearColor(0.65f, 0.80f, 1.f, 1.f))
                 ]
-            ]
-            + SScrollBox::Slot().Padding(12, 0)
-            [
-                SNew(SBox)
-                .Visibility_Lambda([this]() {
-                    return bSimAdvancedExpanded_ ? EVisibility::Visible : EVisibility::Collapsed;
-                })
+                .BodyContent()
                 [
                     SNew(SVerticalBox)
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
@@ -627,6 +728,54 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                         .OnValueChanged_Lambda([this](float v) { CrossPigmentCoversDust = v; })
                         .ToolTipText(LOCTEXT("TipCrossPig", "How much rust suppresses dust on the same surface. 1 = rust fully covers any underlying dust."))
                     )]
+                    // ── Blocking Objects (Advanced 내부로 이동) ──────────────────────
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 2)
+                    [ SNew(STextBlock).Text(LOCTEXT("OccluderHdrAdv", "Blocking Objects"))
+                      .ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
+                    + SVerticalBox::Slot().AutoHeight()
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                        [
+                            SNew(SCheckBox)
+                            .IsChecked_Lambda([this]() {
+                                return bAutoOccluder_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                            })
+                            .OnCheckStateChanged_Lambda([this](ECheckBoxState s) {
+                                bAutoOccluder_ = (s == ECheckBoxState::Checked);
+                            })
+                        ]
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0, 8, 0)
+                        [
+                            SNew(STextBlock)
+                            .Text(LOCTEXT("AutoOccLabel", "Auto-detect nearby occluders"))
+                            .ToolTipText(LOCTEXT("TipAutoOcc",
+                                "Automatically include nearby Static Mesh actors as blocking objects.\n"
+                                "These objects block particles but do not receive weathering themselves."))
+                        ]
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
+                        [ SNew(STextBlock).Text(LOCTEXT("AutoOccRadLabel", "Radius (cm):")) ]
+                        + SHorizontalBox::Slot().FillWidth(1.f)
+                        [
+                            SNew(SNumericEntryBox<float>).AllowSpin(false)
+                            .Value_Lambda([this]() { return TOptional<float>(AutoOccluderRadius_); })
+                            .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) {
+                                AutoOccluderRadius_ = FMath::Max(0.f, v);
+                                if (Visualizer_) {
+                                    TArray<AActor*> Sel;
+                                    for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
+                                        if (AActor* A = Cast<AActor>(*It)) Sel.Add(A);
+                                    FBox Bounds(EForceInit::ForceInit);
+                                    for (AActor* A : Sel) Bounds += A->GetComponentsBoundingBox(true);
+                                    FVector Center = Sel.IsEmpty() ? FVector::ZeroVector : Bounds.GetCenter();
+                                    Visualizer_->ShowOccluderRadius(Center, AutoOccluderRadius_, 3.0f);
+                                }
+                            })
+                            .ToolTipText(LOCTEXT("TipAutoOccRadius",
+                                "Search radius (cm) from the center of selected actors.\n"
+                                "Press Enter to preview the radius sphere in the viewport for 3 seconds."))
+                        ]
+                    ]
                 ]
             ]
 
@@ -635,367 +784,178 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
             [
                 SNew(SBorder)
                 .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
+                .Padding(FMargin(10.f, 7.f))
                 [
                     SNew(STextBlock)
                     .Text(LOCTEXT("TonTypesHdr", "Particle Types"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 11))
                     .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
                 ]
             ]
+            + SScrollBox::Slot().Padding(8, 2)
+            [ SAssignNew(TonTypesContainer_, SBox) ]
             + SScrollBox::Slot().Padding(8, 2)
             [
                 SNew(SButton).HAlign(HAlign_Center)
                 .Text(LOCTEXT("AddType", "+ Add Particle"))
                 .OnClicked(this, &SGammaTonPanel::OnAddTonTypeClicked)
             ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ SAssignNew(TonTypesContainer_, SBox) ]
 
             // ── Per-Actor γ-Reflectance ───────────────────────────────────────
             + SScrollBox::Slot().Padding(4, 8, 4, 0)
             [
                 SNew(SBorder)
                 .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
+                .Padding(FMargin(8.f, 4.f))
                 [
-                    SNew(STextBlock)
-                    .Text(LOCTEXT("PerActorHdr", "Surface Settings per Object"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
-                    .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
+                    [
+                        SNew(STextBlock)
+                        .Text(LOCTEXT("PerActorHdr", "Surface Settings per Object"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                        .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
+                    ]
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 6, 0)
+                    [
+                        SNew(STextBlock)
+                        .Text_Lambda([this]() {
+                            int32 N = ActorReflEntries_.Num();
+                            return N > 0
+                                ? FText::FromString(FString::Printf(TEXT("(%d)"), N))
+                                : FText::GetEmpty();
+                        })
+                        .Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
+                        .ColorAndOpacity(FLinearColor(0.50f, 0.70f, 0.50f, 1.f))
+                    ]
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                    [
+                        SNew(SButton)
+                        .ButtonStyle(FCoreStyle::Get(), "NoBorder")
+                        .ContentPadding(FMargin(4.f, 2.f))
+                        .ToolTipText(LOCTEXT("RefreshActorsTip", "Load currently selected Outliner actors into the list below."))
+                        .OnClicked(this, &SGammaTonPanel::OnRefreshActorsClicked)
+                        [
+                            SNew(STextBlock)
+                            .Text(FText::FromString(TEXT("↺ Load Selection")))
+                            .Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
+                            .ColorAndOpacity(FLinearColor(0.55f, 0.75f, 1.f, 1.f))
+                        ]
+                    ]
                 ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SButton).HAlign(HAlign_Center)
-                .Text(LOCTEXT("RefreshActors", "Refresh Actor List from Selection"))
-                .OnClicked(this, &SGammaTonPanel::OnRefreshActorsClicked)
             ]
             + SScrollBox::Slot().Padding(8, 2)
             [
                 SAssignNew(ActorReflContainer_, SBox)
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("NoActors", "(Click Refresh to populate from current selection)"))
+                    .Text(LOCTEXT("NoActors", "(Select actors in the Outliner, then click ↺ Load Selection)"))
                     .ColorAndOpacity(FLinearColor(0.5f, 0.5f, 0.5f, 1.f))
                 ]
             ]
 
-            // ── Occluder Actors ───────────────────────────────────────────────
-            + SScrollBox::Slot().Padding(4, 8, 4, 0)
+            // ── Post-Process (기본 collapsed) ────────────────────────────────
+            + SScrollBox::Slot().Padding(4, 8, 4, 4)
             [
-                SNew(SBorder)
+                SNew(SExpandableArea)
+                .BorderImage(FCoreStyle::Get().GetBrush("Border"))
                 .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
-                [
-                    SNew(STextBlock)
-                    .Text(LOCTEXT("OccluderHdr", "Blocking Objects"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
-                    .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
-                ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                [
-                    SNew(SCheckBox)
-                    .IsChecked_Lambda([this]() {
-                        return bAutoOccluder_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-                    })
-                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) {
-                        bAutoOccluder_ = (s == ECheckBoxState::Checked);
-                    })
-                ]
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0, 8, 0)
-                [
-                    SNew(STextBlock)
-                    .Text(LOCTEXT("AutoOccLabel", "Auto-detect nearby occluders"))
-                    .ToolTipText(LOCTEXT("TipAutoOcc",
-                        "Automatically include nearby Static Mesh actors as blocking objects when you run the simulation.\n"
-                        "These objects block particles but do not receive weathering themselves."))
-                ]
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
-                [
-                    SNew(STextBlock).Text(LOCTEXT("AutoOccRadLabel", "Radius (cm):"))
-                ]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [
-                    SNew(SNumericEntryBox<float>).AllowSpin(false)
-                    .Value_Lambda([this]() { return TOptional<float>(AutoOccluderRadius_); })
-                    .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) {
-                        AutoOccluderRadius_ = FMath::Max(0.f, v);
-                        if (Visualizer_) {
-                            TArray<AActor*> Sel;
-                            for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
-                                if (AActor* A = Cast<AActor>(*It)) Sel.Add(A);
-                            FBox Bounds(EForceInit::ForceInit);
-                            for (AActor* A : Sel) Bounds += A->GetComponentsBoundingBox(true);
-                            FVector Center = Sel.IsEmpty() ? FVector::ZeroVector : Bounds.GetCenter();
-                            Visualizer_->ShowOccluderRadius(Center, AutoOccluderRadius_, 3.0f);
-                        }
-                    })
-                    .ToolTipText(LOCTEXT("TipAutoOccRadius",
-                        "Search radius (cm) from the center of the selected actors.\n"
-                        "Any Static Mesh within this radius is added as a blocking object.\n"
-                        "Press Enter to preview the radius sphere in the viewport for 3 seconds."))
-                ]
-            ]
-
-            // ── Dust / Pigment ────────────────────────────────────────────────
-            + SScrollBox::Slot().Padding(4, 8, 4, 0)
-            [
-                SNew(SBorder)
-                .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
-                [
-                    SNew(STextBlock)
-                    .Text(LOCTEXT("MatHdr", "Dust / Rust"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
-                    .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
-                ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ SNew(STextBlock).Text(LOCTEXT("DustSectionLbl", "Dust"))
-              .ColorAndOpacity(FLinearColor(0.75f, 0.75f, 0.75f, 1.f)) ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 6, 0)
-                [
-                    SNew(SCheckBox)
-                    .IsChecked_Lambda([this]() { return !bDustUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bDustUseTexture_ = false; })
-                    [ SNew(STextBlock).Text(LOCTEXT("DustColorLbl", "Color")) ]
-                ]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [
-                    SNew(SBox).IsEnabled_Lambda([this]() { return !bDustUseTexture_; })
-                    [
-                        SNew(SColorBlock)
-                        .Color_Lambda([this]() { return ScenarioDustColor; })
-                        .OnMouseButtonDown_Lambda([this](const FGeometry&, const FPointerEvent& E) -> FReply {
-                            if (!bDustUseTexture_ && E.GetEffectingButton() == EKeys::LeftMouseButton) {
-                                FColorPickerArgs Args;
-                                Args.bIsModal = true; Args.bUseAlpha = false;
-                                Args.InitialColor = ScenarioDustColor;
-                                Args.OnColorCommitted = FOnLinearColorValueChanged::CreateLambda(
-                                    [this](FLinearColor C) { ScenarioDustColor = C; });
-                                OpenColorPicker(Args);
-                            }
-                            return FReply::Handled();
-                        })
-                        .ToolTipText(LOCTEXT("TipDustCol", "Tint color for deposited dust. Click to open the color picker."))
-                    ]
-                ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 6, 0)
-                [
-                    SNew(SCheckBox)
-                    .IsChecked_Lambda([this]() { return bDustUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bDustUseTexture_ = true; })
-                    [ SNew(STextBlock).Text(LOCTEXT("DustTexLbl", "Texture")) ]
-                ]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [
-                    SNew(SBox).IsEnabled_Lambda([this]() { return bDustUseTexture_; })
-                    [
-                        SNew(SObjectPropertyEntryBox)
-                        .AllowedClass(UTexture2D::StaticClass()).AllowClear(true)
-                        .ObjectPath_Lambda([this]() { return DustTexture_ ? DustTexture_->GetPathName() : FString(); })
-                        .OnObjectChanged_Lambda([this](const FAssetData& Data) {
-                            DustTexture_ = Cast<UTexture2D>(Data.GetAsset());
-                            if (DustTexture_) bDustUseTexture_ = true;
-                        })
-                        .ToolTipText(LOCTEXT("TipDustTex", "Optional detail texture multiplied on top of the dust color for added surface variation."))
-                    ]
-                ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ SNew(STextBlock).Text(LOCTEXT("PigSectionLbl", "Rust"))
-              .ColorAndOpacity(FLinearColor(0.75f, 0.75f, 0.75f, 1.f)) ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 6, 0)
-                [
-                    SNew(SCheckBox)
-                    .IsChecked_Lambda([this]() { return !bPigmentUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bPigmentUseTexture_ = false; })
-                    [ SNew(STextBlock).Text(LOCTEXT("PigColorLbl", "Color")) ]
-                ]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [
-                    SNew(SBox).IsEnabled_Lambda([this]() { return !bPigmentUseTexture_; })
-                    [
-                        SNew(SColorBlock)
-                        .Color_Lambda([this]() { return ScenarioPigmentColor; })
-                        .OnMouseButtonDown_Lambda([this](const FGeometry&, const FPointerEvent& E) -> FReply {
-                            if (!bPigmentUseTexture_ && E.GetEffectingButton() == EKeys::LeftMouseButton) {
-                                FColorPickerArgs Args;
-                                Args.bIsModal = true; Args.bUseAlpha = false;
-                                Args.InitialColor = ScenarioPigmentColor;
-                                Args.OnColorCommitted = FOnLinearColorValueChanged::CreateLambda(
-                                    [this](FLinearColor C) { ScenarioPigmentColor = C; });
-                                OpenColorPicker(Args);
-                            }
-                            return FReply::Handled();
-                        })
-                        .ToolTipText(LOCTEXT("TipPigCol", "Tint color for deposited rust. Click to open the color picker."))
-                    ]
-                ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 6, 0)
-                [
-                    SNew(SCheckBox)
-                    .IsChecked_Lambda([this]() { return bPigmentUseTexture_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-                    .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { if (s == ECheckBoxState::Checked) bPigmentUseTexture_ = true; })
-                    [ SNew(STextBlock).Text(LOCTEXT("PigTexLbl", "Texture")) ]
-                ]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [
-                    SNew(SBox).IsEnabled_Lambda([this]() { return bPigmentUseTexture_; })
-                    [
-                        SNew(SObjectPropertyEntryBox)
-                        .AllowedClass(UTexture2D::StaticClass()).AllowClear(true)
-                        .ObjectPath_Lambda([this]() { return PigmentTexture_ ? PigmentTexture_->GetPathName() : FString(); })
-                        .OnObjectChanged_Lambda([this](const FAssetData& Data) {
-                            PigmentTexture_ = Cast<UTexture2D>(Data.GetAsset());
-                            if (PigmentTexture_) bPigmentUseTexture_ = true;
-                        })
-                        .ToolTipText(LOCTEXT("TipPigTex", "Optional detail texture multiplied on top of the rust color for added surface variation."))
-                    ]
-                ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Weathering Intensity"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
-                .Value_Lambda([this]() { return DustVisibility_; })
-                .OnValueChanged_Lambda([this](float V) { DustVisibility_ = V; })
-                .ToolTipText(LOCTEXT("TipDustVis", "Overall weathering color intensity. 0 = invisible, 1 = full effect. Use this as a master opacity for the weathering layer."))
-            )]
-
-            // ── Post-Process ──────────────────────────────────────────────────
-            + SScrollBox::Slot().Padding(4, 8, 4, 0)
-            [
-                SNew(SBorder)
-                .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
+                .BodyBorderImage(FCoreStyle::Get().GetBrush("Border"))
+                .BodyBorderBackgroundColor(FLinearColor(0.08f, 0.08f, 0.12f, 1.f))
+                .HeaderPadding(FMargin(4.f, 4.f))
+                .Padding(FMargin(4.f, 2.f, 4.f, 4.f))
+                .InitiallyCollapsed(true)
+                .HeaderContent()
                 [
                     SNew(STextBlock)
                     .Text(LOCTEXT("PPHdr", "Post-Process"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
-                    .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                    .ColorAndOpacity(FLinearColor(0.65f, 0.80f, 1.f, 1.f))
+                ]
+                .BodyContent()
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
+                    [ MakeRow(TEXT("Contrast"),
+                        SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).MinSliderValue(0.f).MaxSliderValue(1.f).Delta(0.01f)
+                        .Value_Lambda([this]() { return Contrast_; })
+                        .OnValueChanged_Lambda([this](float v) { Contrast_ = v; })
+                        .ToolTipText(LOCTEXT("TipContrast",
+                            "Sharpens the boundary between weathered and clean areas.\n"
+                            "0 = soft, gradual deposit  ·  1 = hard, high-contrast edge.\n"
+                            "Drives threshold cutoff and sigmoid steepness together."))
+                    )]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                        [ SNew(SBox).WidthOverride(160.f) [ SNew(STextBlock).Text(LOCTEXT("LblSurfVar", "Surface Variation")) ] ]
+                        + SHorizontalBox::Slot().FillWidth(1.f)
+                        [
+                            SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).MinSliderValue(0.f).MaxSliderValue(1.f).Delta(0.01f)
+                            .Value_Lambda([this]() { return SurfaceVariation_; })
+                            .OnValueChanged_Lambda([this](float v) { SurfaceVariation_ = v; })
+                            .ToolTipText(LOCTEXT("TipSurfVar",
+                                "Adds fractal noise to break up uniform weathering patches.\n"
+                                "0 = no noise  ·  1 = strong variation.\n"
+                                "Drives noise strength and scale together."))
+                        ]
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6, 0, 0, 0)
+                        [
+                            SNew(SButton)
+                            .Text(LOCTEXT("RandSeed", "Randomize"))
+                            .OnClicked_Lambda([this]() -> FReply {
+                                PostProcessConfig_.noise_seed = (uint32_t)FMath::Rand();
+                                return FReply::Handled();
+                            })
+                            .ToolTipText(LOCTEXT("TipRandSeed", "Pick a new random noise pattern."))
+                        ]
+                    ]
                 ]
             ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Deposit Rate"),
-                SNew(SSpinBox<float>).MinValue(0.01f).MaxValue(1.f).Delta(0.01f)
-                .Value_Lambda([this]() { return PostProcessConfig_.probabilistic_deposit; })
-                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.probabilistic_deposit = v; })
-                .ToolTipText(LOCTEXT("TipDepRate", "Fraction of particles that actually deposit material. 1.0 = all deposit, 0.3 = only 30% deposit. Lower values add a grainy, sparse look."))
-            )]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                [ SNew(SCheckBox)
-                  .IsChecked_Lambda([this]() { return PostProcessConfig_.useThreshold ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-                  .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { PostProcessConfig_.useThreshold = (s == ECheckBoxState::Checked); }) ]
-                + SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(4, 0, 0, 0)
-                [ SNew(STextBlock).Text(LOCTEXT("ThreshLabel", "Threshold + Sigmoid (contrast)")) ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Threshold"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(0.9f).Delta(0.01f)
-                .Value_Lambda([this]() { return PostProcessConfig_.threshold; })
-                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.threshold = v; })
-                .ToolTipText(LOCTEXT("TipThresh", "Deposit values below this level are cut to zero, sharpening the weathering boundary."))
-            )]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Steepness"),
-                SNew(SSpinBox<float>).MinValue(1.f).MaxValue(50.f).Delta(0.5f)
-                .Value_Lambda([this]() { return PostProcessConfig_.sigmoid_steepness; })
-                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.sigmoid_steepness = v; })
-                .ToolTipText(LOCTEXT("TipSteep", "Controls the transition sharpness of the sigmoid contrast curve. Higher = harder edge between clean and weathered."))
-            )]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                [ SNew(SCheckBox)
-                  .IsChecked_Lambda([this]() { return PostProcessConfig_.useNoiseMask ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-                  .OnCheckStateChanged_Lambda([this](ECheckBoxState s) { PostProcessConfig_.useNoiseMask = (s == ECheckBoxState::Checked); }) ]
-                + SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(4, 0, 0, 0)
-                [ SNew(STextBlock).Text(LOCTEXT("NoiseMaskLabel", "Fractal Noise Mask")) ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Scale"),
-                SNew(SSpinBox<float>).MinValue(0.5f).MaxValue(64.f).Delta(0.5f)
-                .Value_Lambda([this]() { return PostProcessConfig_.noise_scale; })
-                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.noise_scale = v; })
-                .ToolTipText(LOCTEXT("TipNoiseScale", "Frequency of the fractal noise. Higher values create smaller, finer noise patches."))
-            )]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Octaves"),
-                SNew(SSpinBox<int32>).MinValue(1).MaxValue(8)
-                .Value_Lambda([this]() { return PostProcessConfig_.noise_octaves; })
-                .OnValueChanged_Lambda([this](int32 v) { PostProcessConfig_.noise_octaves = v; })
-                .ToolTipText(LOCTEXT("TipNoiseOct", "Number of fractal layers. More octaves add fine detail but increase compute time."))
-            )]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Strength"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                .Value_Lambda([this]() { return PostProcessConfig_.noise_strength; })
-                .OnValueChanged_Lambda([this](float v) { PostProcessConfig_.noise_strength = v; })
-                .ToolTipText(LOCTEXT("TipNoiseStr", "How strongly the noise mask modulates the final deposit. 0 = no noise, 1 = full noise variation."))
-            )]
-            + SScrollBox::Slot().Padding(8, 2)
-            [ MakeRow(TEXT("Seed"),
-                SNew(SSpinBox<int32>).MinValue(0).MaxValue(999999)
-                .Value_Lambda([this]() { return (int32)PostProcessConfig_.noise_seed; })
-                .OnValueChanged_Lambda([this](int32 v) { PostProcessConfig_.noise_seed = (uint32_t)v; })
-                .ToolTipText(LOCTEXT("TipNoiseSeed", "Random seed for the noise pattern. Change this to get a different weathering texture variation."))
-            )]
 
-            // ── Debug ─────────────────────────────────────────────────────────
-            + SScrollBox::Slot().Padding(4, 8, 4, 0)
+            // ── Debug (기본 collapsed) ────────────────────────────────────────
+            + SScrollBox::Slot().Padding(4, 4, 4, 8)
             [
-                SNew(SBorder)
+                SNew(SExpandableArea)
+                .BorderImage(FCoreStyle::Get().GetBrush("Border"))
                 .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .Padding(FMargin(8.f, 5.f))
+                .BodyBorderImage(FCoreStyle::Get().GetBrush("Border"))
+                .BodyBorderBackgroundColor(FLinearColor(0.08f, 0.08f, 0.12f, 1.f))
+                .HeaderPadding(FMargin(4.f, 4.f))
+                .Padding(FMargin(4.f, 2.f, 4.f, 4.f))
+                .InitiallyCollapsed(true)
+                .HeaderContent()
                 [
                     SNew(STextBlock)
                     .Text(LOCTEXT("DbgHdr", "Debug"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
-                    .ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                    .ColorAndOpacity(FLinearColor(0.65f, 0.80f, 1.f, 1.f))
                 ]
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SButton).HAlign(HAlign_Center)
-                .Text(LOCTEXT("TraceBtn", "Preview Particle Path"))
-                .OnClicked(this, &SGammaTonPanel::OnTraceRayClicked)
-                .ToolTipText(LOCTEXT("TipTrace",
-                    "Trace a single particle path and draw it in the viewport.\n"
-                    "Useful for verifying source position and direction before running a full simulation.\n"
-                    "Detailed results are printed to the Output Log."))
-            ]
-            + SScrollBox::Slot().Padding(8, 2)
-            [
-                SNew(SButton).HAlign(HAlign_Center)
-                .Text(LOCTEXT("ClearPathBtn", "Clear Particle Path"))
-                .OnClicked_Lambda([this]() -> FReply {
-                    if (RayVisualizer_) RayVisualizer_->ClearPath();
-                    return FReply::Handled();
-                })
-                .ToolTipText(LOCTEXT("TipClearPath", "Remove the particle path visualization from the viewport."))
+                .BodyContent()
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
+                    [
+                        SNew(SButton).HAlign(HAlign_Center)
+                        .Text(LOCTEXT("TraceBtn", "Preview Particle Path"))
+                        .OnClicked(this, &SGammaTonPanel::OnTraceRayClicked)
+                        .ToolTipText(LOCTEXT("TipTrace",
+                            "Trace a single particle path and draw it in the viewport.\n"
+                            "Useful for verifying source position and direction before running a full simulation.\n"
+                            "Detailed results are printed to the Output Log."))
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
+                    [
+                        SNew(SButton).HAlign(HAlign_Center)
+                        .Text(LOCTEXT("ClearPathBtn", "Clear Particle Path"))
+                        .OnClicked_Lambda([this]() -> FReply {
+                            if (RayVisualizer_) RayVisualizer_->ClearPath();
+                            return FReply::Handled();
+                        })
+                        .ToolTipText(LOCTEXT("TipClearPath", "Remove the particle path visualization from the viewport."))
+                    ]
+                ]
             ]
         ]
     ];
@@ -1320,28 +1280,48 @@ void SGammaTonPanel::RebuildTonTypesUI()
             [
                 SNew(SHorizontalBox)
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("Scat"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                    .Value_Lambda([Entry]() { return Entry->MotionKs; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKs = v; })
-                    .ToolTipText(LOCTEXT("TipKs", "Probability of a random scatter event. If Scatter + Bounce + Flow < 1, the remainder is the settle probability."))
-                )]
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                    [ SNew(SBox).WidthOverride(52.f) [ SNew(STextBlock).Text(FText::FromString(TEXT("Scatter"))) ] ]
+                    + SHorizontalBox::Slot().FillWidth(1.f)
+                    [ SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->MotionKs; })
+                        .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKs = v; })
+                        .ToolTipText(LOCTEXT("TipKs", "Probability of a random scatter event. If Scatter + Bounce + Flow < 1, the remainder is the settle probability."))
+                    ]
+                ]
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("Bnce"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                    .Value_Lambda([Entry]() { return Entry->MotionKp; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKp = v; })
-                    .ToolTipText(LOCTEXT("TipKp", "Probability of a parabolic bounce. The particle arcs through the air under gravity before landing on a new surface."))
-                )]
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                    [ SNew(SBox).WidthOverride(52.f) [ SNew(STextBlock).Text(FText::FromString(TEXT("Bounce"))) ] ]
+                    + SHorizontalBox::Slot().FillWidth(1.f)
+                    [ SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->MotionKp; })
+                        .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKp = v; })
+                        .ToolTipText(LOCTEXT("TipKp", "Probability of a parabolic bounce. The particle arcs through the air under gravity before landing on a new surface."))
+                    ]
+                ]
                 + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("Flow"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                    .Value_Lambda([Entry]() { return Entry->MotionKf; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKf = v; })
-                    .ToolTipText(LOCTEXT("TipKf", "Probability of surface flow. The particle slides along the surface in the gravity-tangent direction, creating drip or streak effects."))
-                )]
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                    [ SNew(SBox).WidthOverride(52.f) [ SNew(STextBlock).Text(FText::FromString(TEXT("Flow"))) ] ]
+                    + SHorizontalBox::Slot().FillWidth(1.f)
+                    [ SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->MotionKf; })
+                        .OnValueChanged_Lambda([Entry](float v) { Entry->MotionKf = v; })
+                        .ToolTipText(LOCTEXT("TipKf", "Probability of surface flow. The particle slides along the surface in the gravity-tangent direction, creating drip or streak effects."))
+                    ]
+                ]
             ];
 
             // ── Carrier ───────────────────────────────────────────────────────
             CardBox->AddSlot().AutoHeight().Padding(0, 4, 0, 2)
             [ SNew(STextBlock).Text(LOCTEXT("CarLbl", "  Particle Carries")).ColorAndOpacity(FLinearColor(0.7f, 0.85f, 1.f, 1.f)) ];
+
+            // Row 1: Dust + Rust (color deposits — always active)
             CardBox->AddSlot().AutoHeight()
             [
                 SNew(SHorizontalBox)
@@ -1357,32 +1337,87 @@ void SGammaTonPanel::RebuildTonTypesUI()
                     .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSP = v; })
                     .ToolTipText(LOCTEXT("TipSP", "Amount of rust / pigment carried. Deposited as a colored stain and can trigger rust-growth via Material Interactions."))
                 )]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("Rough"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                    .Value_Lambda([Entry]() { return Entry->CarrierSR; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSR = v; })
-                    .ToolTipText(LOCTEXT("TipSR", "Roughness deposited on the surface. Higher values make the surface grittier and increase particle capture on subsequent passes."))
-                )]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [ MakeC(TEXT("Moist"), SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                    .Value_Lambda([Entry]() { return Entry->CarrierSH; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSH = v; })
-                    .ToolTipText(LOCTEXT("TipSH", "Moisture deposited on the surface. High moisture accelerates rust growth and enables biological effects via Material Interactions."))
-                )]
             ];
 
-            // ── Weight (맨 아래) ──────────────────────────────────────────────
+            // Row 2: Roughness + Moisture — label dims to gray when value = 0 (inactive)
+            CardBox->AddSlot().AutoHeight().Padding(0, 2, 0, 0)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                    [ SNew(SBox).WidthOverride(40.f)
+                      [ SNew(STextBlock).Text(FText::FromString(TEXT("Rough")))
+                        .ColorAndOpacity_Lambda([Entry]() -> FSlateColor {
+                            return Entry->CarrierSR > 0.f
+                                ? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 1.f))
+                                : FSlateColor(FLinearColor(0.35f, 0.35f, 0.35f, 1.f));
+                        })
+                      ]
+                    ]
+                    + SHorizontalBox::Slot().FillWidth(1.f)
+                    [ SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->CarrierSR; })
+                        .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSR = v; })
+                        .ToolTipText(LOCTEXT("TipSR", "Roughness deposited on the surface. Higher values make the surface grittier and increase particle capture on subsequent passes."))
+                    ]
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.f)
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                    [ SNew(SBox).WidthOverride(40.f)
+                      [ SNew(STextBlock).Text(FText::FromString(TEXT("Moist")))
+                        .ColorAndOpacity_Lambda([Entry]() -> FSlateColor {
+                            return Entry->CarrierSH > 0.f
+                                ? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 1.f))
+                                : FSlateColor(FLinearColor(0.35f, 0.35f, 0.35f, 1.f));
+                        })
+                      ]
+                    ]
+                    + SHorizontalBox::Slot().FillWidth(1.f)
+                    [ SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                        .Value_Lambda([Entry]() { return Entry->CarrierSH; })
+                        .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSH = v; })
+                        .ToolTipText(LOCTEXT("TipSH", "Moisture deposited on the surface. High moisture accelerates rust growth and enables biological effects via Material Interactions."))
+                    ]
+                ]
+            ];
+
+            // ── Weight (1개일 때 숨김, 2개 이상일 때 비율 표시) ──────────────
             CardBox->AddSlot().AutoHeight().Padding(0, 6, 0, 2)
             [
-                MakeRow(TEXT("  Weight"),
-                    SNew(SSpinBox<float>)
-                    .MinValue(0.f).MaxValue(100.f)
-                    .MinSliderValue(0.f).MaxSliderValue(10.f)
-                    .Delta(0.1f)
-                    .Value_Lambda([Entry]() { return Entry->Weight; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->Weight = FMath::Max(0.f, v); })
-                    .ToolTipText(LOCTEXT("TipWeight", "Relative emission weight compared to other particle types. A type with weight 2 emits twice as many particles as one with weight 1."))
-                )
+                SNew(SBox)
+                .Visibility_Lambda([this]() {
+                    return TonTypes_.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed;
+                })
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                    [ SNew(SBox).WidthOverride(160.f) [ SNew(STextBlock).Text(FText::FromString(TEXT("  Weight"))) ] ]
+                    + SHorizontalBox::Slot().FillWidth(1.f)
+                    [
+                        SNew(SSpinBox<float>)
+                        .MinValue(0.f).MaxValue(100.f)
+                        .MinSliderValue(0.f).MaxSliderValue(10.f)
+                        .Delta(0.1f)
+                        .Value_Lambda([Entry]() { return Entry->Weight; })
+                        .OnValueChanged_Lambda([Entry](float v) { Entry->Weight = FMath::Max(0.f, v); })
+                        .ToolTipText(LOCTEXT("TipWeight", "Relative emission weight. Normalized to sum 1.0 across all types at runtime."))
+                    ]
+                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6, 0, 0, 0)
+                    [
+                        SNew(STextBlock)
+                        .ColorAndOpacity(FLinearColor(0.55f, 0.65f, 0.80f, 1.f))
+                        .Text_Lambda([this, Entry]() -> FText {
+                            float Total = 0.f;
+                            for (const auto& T : TonTypes_) Total += T->Weight;
+                            float Pct = (Total > 0.f) ? (Entry->Weight / Total * 100.f) : 0.f;
+                            return FText::FromString(FString::Printf(TEXT("(%.0f%%)"), Pct));
+                        })
+                    ]
+                ]
             ];
 
         }
@@ -1446,86 +1481,98 @@ void SGammaTonPanel::RebuildActorReflUI()
 
     TSharedRef<SVerticalBox> VBox = SNew(SVerticalBox);
     for (auto& Entry : ActorReflEntries_) {
-        VBox->AddSlot().AutoHeight().Padding(0, 3)
+        VBox->AddSlot().AutoHeight().Padding(0, 2)
         [
-            SNew(SVerticalBox)
-            + SVerticalBox::Slot().AutoHeight()
+            SNew(SExpandableArea)
+            .BorderImage(FCoreStyle::Get().GetBrush("Border"))
+            .BorderBackgroundColor(FLinearColor(0.13f, 0.13f, 0.19f, 1.f))
+            .BodyBorderImage(FCoreStyle::Get().GetBrush("Border"))
+            .BodyBorderBackgroundColor(FLinearColor(0.08f, 0.08f, 0.12f, 1.f))
+            .HeaderPadding(FMargin(4.f, 3.f))
+            .Padding(FMargin(4.f, 2.f, 4.f, 4.f))
+            .InitiallyCollapsed(Entry->bCollapsed)
+            .OnAreaExpansionChanged_Lambda([Entry](bool bExpanded) { Entry->bCollapsed = !bExpanded; })
+            .HeaderContent()
             [
                 SNew(STextBlock)
-                .Text(FText::FromString(TEXT("  ") + Entry->Name))
-                .ColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.5f, 1.f))
+                .Text(FText::FromString(Entry->Name))
+                .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                .ColorAndOpacity(FLinearColor(0.85f, 0.85f, 0.5f, 1.f))
             ]
-            + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Scatter Fade"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
-                .Value_Lambda([Entry]() { return Entry->DeltaS; })
-                .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaS = v; })
-                .ToolTipText(LOCTEXT("TipDeltaS",
-                    "How quickly scatter probability fades per bounce on this object.\n"
-                    "Higher values make particles settle sooner, concentrating deposits near the source.\n"
-                    "0 = no fade (infinite scatter), 1 = settles immediately on first contact.\n"
-                    "Recommended: 0.3–0.7"))
-            )]
-            + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Bounce Fade"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
-                .Value_Lambda([Entry]() { return Entry->DeltaP; })
-                .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaP = v; })
-                .ToolTipText(LOCTEXT("TipDeltaP",
-                    "How quickly bounce probability fades per impact on this object.\n"
-                    "Faded bounce converts to surface flow, forming drip streaks.\n"
-                    "Higher values create more runoff and fewer hops.\n"
-                    "Recommended: 0.0–0.3"))
-            )]
-            + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Flow Fade"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
-                .Value_Lambda([Entry]() { return Entry->DeltaF; })
-                .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaF = v; })
-                .ToolTipText(LOCTEXT("TipDeltaF",
-                    "How quickly surface flow fades per step on this object.\n"
-                    "Higher values produce short, stubby streaks.\n"
-                    "0 = flows indefinitely, 1 = stops after a single step.\n"
-                    "Recommended: 0.0–0.2"))
-            )]
-            // ── 초기 재질값 (논문 §4 stain-bleeding) ─────────────────────────
-            + SVerticalBox::Slot().AutoHeight().Padding(0, 3, 0, 0)
+            .BodyContent()
             [
-                SNew(STextBlock)
-                .Text(LOCTEXT("InitMatHdr", "    — Pre-existing Weathering —"))
-                .ColorAndOpacity(FLinearColor(0.6f, 0.75f, 0.6f, 1.f))
-                .ToolTipText(LOCTEXT("InitMatTip",
-                    "Weathering already present on the surface before the simulation runs.\n"
-                    "For example, setting Starting Rust > 0 lets rust bleed onto adjacent surfaces from the very first step."))
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [ MakeRow(TEXT("Scatter Fade"),
+                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
+                    .Value_Lambda([Entry]() { return Entry->DeltaS; })
+                    .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaS = v; })
+                    .ToolTipText(LOCTEXT("TipDeltaS",
+                        "How quickly scatter probability fades per bounce on this object.\n"
+                        "Higher values make particles settle sooner, concentrating deposits near the source.\n"
+                        "0 = no fade (infinite scatter), 1 = settles immediately on first contact.\n"
+                        "Recommended: 0.3–0.7"))
+                )]
+                + SVerticalBox::Slot().AutoHeight()
+                [ MakeRow(TEXT("Bounce Fade"),
+                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
+                    .Value_Lambda([Entry]() { return Entry->DeltaP; })
+                    .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaP = v; })
+                    .ToolTipText(LOCTEXT("TipDeltaP",
+                        "How quickly bounce probability fades per impact on this object.\n"
+                        "Faded bounce converts to surface flow, forming drip streaks.\n"
+                        "Higher values create more runoff and fewer hops.\n"
+                        "Recommended: 0.0–0.3"))
+                )]
+                + SVerticalBox::Slot().AutoHeight()
+                [ MakeRow(TEXT("Flow Fade"),
+                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
+                    .Value_Lambda([Entry]() { return Entry->DeltaF; })
+                    .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaF = v; })
+                    .ToolTipText(LOCTEXT("TipDeltaF",
+                        "How quickly surface flow fades per step on this object.\n"
+                        "Higher values produce short, stubby streaks.\n"
+                        "0 = flows indefinitely, 1 = stops after a single step.\n"
+                        "Recommended: 0.0–0.2"))
+                )]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 1)
+                [
+                    SNew(STextBlock)
+                    .Text(LOCTEXT("InitMatHdr", "— Pre-existing Weathering —"))
+                    .ColorAndOpacity(FLinearColor(0.6f, 0.75f, 0.6f, 1.f))
+                    .ToolTipText(LOCTEXT("InitMatTip",
+                        "Weathering already present on the surface before the simulation runs.\n"
+                        "For example, setting Starting Rust > 0 lets rust bleed onto adjacent surfaces from the very first step."))
+                ]
+                + SVerticalBox::Slot().AutoHeight()
+                [ MakeRow(TEXT("Starting Dust"),
+                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                    .Value_Lambda([Entry]() { return Entry->InitSD; })
+                    .OnValueChanged_Lambda([Entry](float v) { Entry->InitSD = v; })
+                    .ToolTipText(LOCTEXT("TipInitSD", "Dust already covering this surface. 0 = clean, 1 = fully coated."))
+                )]
+                + SVerticalBox::Slot().AutoHeight()
+                [ MakeRow(TEXT("Starting Rust"),
+                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                    .Value_Lambda([Entry]() { return Entry->InitSP; })
+                    .OnValueChanged_Lambda([Entry](float v) { Entry->InitSP = v; })
+                    .ToolTipText(LOCTEXT("TipInitSP", "Rust already on this surface. Pre-existing rust spreads onto connected surfaces from the first simulation step."))
+                )]
+                + SVerticalBox::Slot().AutoHeight()
+                [ MakeRow(TEXT("Starting Roughness"),
+                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                    .Value_Lambda([Entry]() { return Entry->InitSR; })
+                    .OnValueChanged_Lambda([Entry](float v) { Entry->InitSR = v; })
+                    .ToolTipText(LOCTEXT("TipInitSR", "Surface roughness before simulation. Rougher surfaces capture more particles, accelerating weathering buildup."))
+                )]
+                + SVerticalBox::Slot().AutoHeight()
+                [ MakeRow(TEXT("Starting Moisture"),
+                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
+                    .Value_Lambda([Entry]() { return Entry->InitSH; })
+                    .OnValueChanged_Lambda([Entry](float v) { Entry->InitSH = v; })
+                    .ToolTipText(LOCTEXT("TipInitSH", "Moisture already on this surface. High starting moisture immediately activates rust growth and biological effects via Material Interactions."))
+                )]
             ]
-            + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Starting Dust"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                .Value_Lambda([Entry]() { return Entry->InitSD; })
-                .OnValueChanged_Lambda([Entry](float v) { Entry->InitSD = v; })
-                .ToolTipText(LOCTEXT("TipInitSD", "Dust already covering this surface. 0 = clean, 1 = fully coated."))
-            )]
-            + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Starting Rust"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                .Value_Lambda([Entry]() { return Entry->InitSP; })
-                .OnValueChanged_Lambda([Entry](float v) { Entry->InitSP = v; })
-                .ToolTipText(LOCTEXT("TipInitSP", "Rust already on this surface. Pre-existing rust spreads onto connected surfaces from the first simulation step."))
-            )]
-            + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Starting Roughness"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                .Value_Lambda([Entry]() { return Entry->InitSR; })
-                .OnValueChanged_Lambda([Entry](float v) { Entry->InitSR = v; })
-                .ToolTipText(LOCTEXT("TipInitSR", "Surface roughness before simulation. Rougher surfaces capture more particles, accelerating weathering buildup."))
-            )]
-            + SVerticalBox::Slot().AutoHeight()
-            [ MakeRow(TEXT("    Starting Moisture"),
-                SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                .Value_Lambda([Entry]() { return Entry->InitSH; })
-                .OnValueChanged_Lambda([Entry](float v) { Entry->InitSH = v; })
-                .ToolTipText(LOCTEXT("TipInitSH", "Moisture already on this surface. High starting moisture immediately activates rust growth and biological effects via Material Interactions."))
-            )]
         ];
     }
     ActorReflContainer_->SetContent(VBox);
@@ -1579,7 +1626,6 @@ void SGammaTonPanel::SaveSettings() const
     GConfig->SetInt  (S, TEXT("NTonsPerIter"),    NTonsPerIter,         GEditorPerProjectIni);
     GConfig->SetInt  (S, TEXT("NumIterations"),   NumIterations,        GEditorPerProjectIni);
     GConfig->SetInt  (S, TEXT("MaxBounces"),      MaxBounces,           GEditorPerProjectIni);
-    GConfig->SetFloat(S, TEXT("DepositK"),        DepositK,             GEditorPerProjectIni);
     GConfig->SetFloat(S, TEXT("FlowStep"),        FlowStep,             GEditorPerProjectIni);
     GConfig->SetInt  (S, TEXT("TextureSize"),     TextureSize,          GEditorPerProjectIni);
     GConfig->SetFloat(S, TEXT("BounceDistance"),  BounceDistance,       GEditorPerProjectIni);
@@ -1592,7 +1638,6 @@ void SGammaTonPanel::SaveSettings() const
     // Colors
     GConfig->SetString(S, TEXT("DustColor"),    *FString::Printf(TEXT("%.6f,%.6f,%.6f,%.6f"), ScenarioDustColor.R,    ScenarioDustColor.G,    ScenarioDustColor.B,    ScenarioDustColor.A),    GEditorPerProjectIni);
     GConfig->SetString(S, TEXT("PigmentColor"), *FString::Printf(TEXT("%.6f,%.6f,%.6f,%.6f"), ScenarioPigmentColor.R, ScenarioPigmentColor.G, ScenarioPigmentColor.B, ScenarioPigmentColor.A), GEditorPerProjectIni);
-    GConfig->SetFloat (S, TEXT("DustVisibility"), DustVisibility_, GEditorPerProjectIni);
     // Textures
     GConfig->SetString(S, TEXT("DustTexPath"),    DustTexture_    ? *DustTexture_->GetPathName()    : TEXT(""), GEditorPerProjectIni);
     GConfig->SetString(S, TEXT("PigTexPath"),     PigmentTexture_ ? *PigmentTexture_->GetPathName() : TEXT(""), GEditorPerProjectIni);
@@ -1605,16 +1650,12 @@ void SGammaTonPanel::SaveSettings() const
     // Occluder
     GConfig->SetBool (S, TEXT("bAutoOccluder"),  bAutoOccluder_,      GEditorPerProjectIni);
     GConfig->SetFloat(S, TEXT("OccluderRadius"), AutoOccluderRadius_, GEditorPerProjectIni);
-    // Post-process
-    GConfig->SetFloat(S, TEXT("PP_ProbDep"),   PostProcessConfig_.probabilistic_deposit, GEditorPerProjectIni);
-    GConfig->SetBool (S, TEXT("PP_UseThr"),    PostProcessConfig_.useThreshold,          GEditorPerProjectIni);
-    GConfig->SetFloat(S, TEXT("PP_Thr"),       PostProcessConfig_.threshold,             GEditorPerProjectIni);
-    GConfig->SetFloat(S, TEXT("PP_Steep"),     PostProcessConfig_.sigmoid_steepness,     GEditorPerProjectIni);
-    GConfig->SetBool (S, TEXT("PP_UseNoise"),  PostProcessConfig_.useNoiseMask,          GEditorPerProjectIni);
-    GConfig->SetInt  (S, TEXT("PP_Octaves"),   PostProcessConfig_.noise_octaves,         GEditorPerProjectIni);
-    GConfig->SetFloat(S, TEXT("PP_Strength"),  PostProcessConfig_.noise_strength,        GEditorPerProjectIni);
-    GConfig->SetFloat(S, TEXT("PP_Scale"),     PostProcessConfig_.noise_scale,           GEditorPerProjectIni);
-    GConfig->SetInt  (S, TEXT("PP_Seed"),      (int32)PostProcessConfig_.noise_seed,     GEditorPerProjectIni);
+    // Consolidated UI sliders
+    GConfig->SetFloat(S, TEXT("WeatheringAmount"), WeatheringAmount_, GEditorPerProjectIni);
+    GConfig->SetFloat(S, TEXT("Contrast"),         Contrast_,         GEditorPerProjectIni);
+    GConfig->SetFloat(S, TEXT("SurfaceVariation"), SurfaceVariation_, GEditorPerProjectIni);
+    GConfig->SetInt  (S, TEXT("PP_Seed"),   (int32)PostProcessConfig_.noise_seed,  GEditorPerProjectIni);
+    GConfig->SetInt  (S, TEXT("PP_Octaves"), PostProcessConfig_.noise_octaves,     GEditorPerProjectIni);
     // TonTypes
     GConfig->SetInt(S, TEXT("TonTypeCount"), TonTypes_.Num(), GEditorPerProjectIni);
     for (int32 i = 0; i < TonTypes_.Num(); i++) {
@@ -1649,7 +1690,6 @@ void SGammaTonPanel::LoadSettings()
     GConfig->GetInt  (S, TEXT("NTonsPerIter"),    NTonsPerIter,         GEditorPerProjectIni);
     GConfig->GetInt  (S, TEXT("NumIterations"),   NumIterations,        GEditorPerProjectIni);
     GConfig->GetInt  (S, TEXT("MaxBounces"),      MaxBounces,           GEditorPerProjectIni);
-    GConfig->GetFloat(S, TEXT("DepositK"),        DepositK,             GEditorPerProjectIni);
     GConfig->GetFloat(S, TEXT("FlowStep"),        FlowStep,             GEditorPerProjectIni);
     GConfig->GetInt  (S, TEXT("TextureSize"),     TextureSize,          GEditorPerProjectIni);
     GConfig->GetFloat(S, TEXT("BounceDistance"),  BounceDistance,       GEditorPerProjectIni);
@@ -1667,7 +1707,6 @@ void SGammaTonPanel::LoadSettings()
     FString DustColorStr, PigColorStr;
     if (GConfig->GetString(S, TEXT("DustColor"),    DustColorStr,  GEditorPerProjectIni)) ParseColor(DustColorStr,  ScenarioDustColor);
     if (GConfig->GetString(S, TEXT("PigmentColor"), PigColorStr,   GEditorPerProjectIni)) ParseColor(PigColorStr,   ScenarioPigmentColor);
-    GConfig->GetFloat(S, TEXT("DustVisibility"), DustVisibility_, GEditorPerProjectIni);
     // Textures
     FString DustPath, PigPath;
     GConfig->GetString(S, TEXT("DustTexPath"), DustPath, GEditorPerProjectIni);
@@ -1683,17 +1722,13 @@ void SGammaTonPanel::LoadSettings()
     // Occluder
     GConfig->GetBool (S, TEXT("bAutoOccluder"),  bAutoOccluder_,      GEditorPerProjectIni);
     GConfig->GetFloat(S, TEXT("OccluderRadius"), AutoOccluderRadius_, GEditorPerProjectIni);
-    // Post-process
-    GConfig->GetFloat(S, TEXT("PP_ProbDep"),  PostProcessConfig_.probabilistic_deposit, GEditorPerProjectIni);
-    GConfig->GetBool (S, TEXT("PP_UseThr"),   PostProcessConfig_.useThreshold,          GEditorPerProjectIni);
-    GConfig->GetFloat(S, TEXT("PP_Thr"),      PostProcessConfig_.threshold,             GEditorPerProjectIni);
-    GConfig->GetFloat(S, TEXT("PP_Steep"),    PostProcessConfig_.sigmoid_steepness,     GEditorPerProjectIni);
-    GConfig->GetBool (S, TEXT("PP_UseNoise"), PostProcessConfig_.useNoiseMask,          GEditorPerProjectIni);
-    GConfig->GetInt  (S, TEXT("PP_Octaves"),  PostProcessConfig_.noise_octaves,         GEditorPerProjectIni);
-    GConfig->GetFloat(S, TEXT("PP_Strength"), PostProcessConfig_.noise_strength,        GEditorPerProjectIni);
-    GConfig->GetFloat(S, TEXT("PP_Scale"),    PostProcessConfig_.noise_scale,           GEditorPerProjectIni);
+    // Consolidated UI sliders
+    GConfig->GetFloat(S, TEXT("WeatheringAmount"), WeatheringAmount_, GEditorPerProjectIni);
+    GConfig->GetFloat(S, TEXT("Contrast"),         Contrast_,         GEditorPerProjectIni);
+    GConfig->GetFloat(S, TEXT("SurfaceVariation"), SurfaceVariation_, GEditorPerProjectIni);
     int32 NoiseSeed = 42;
-    GConfig->GetInt  (S, TEXT("PP_Seed"),     NoiseSeed, GEditorPerProjectIni);
+    GConfig->GetInt  (S, TEXT("PP_Seed"),    NoiseSeed,                       GEditorPerProjectIni);
+    GConfig->GetInt  (S, TEXT("PP_Octaves"), PostProcessConfig_.noise_octaves, GEditorPerProjectIni);
     PostProcessConfig_.noise_seed = (uint32_t)NoiseSeed;
     // TonTypes
     int32 TypeCount = 0;
@@ -1743,6 +1778,9 @@ FReply SGammaTonPanel::OnRunClicked()
         return FReply::Handled();
     }
 
+    // Auto-refresh per-actor surface settings from current selection
+    OnRefreshActorsClicked();
+
     if (bAutoOccluder_)
         AutoPopulateOccluders(Actors);
 
@@ -1791,6 +1829,19 @@ FReply SGammaTonPanel::OnRunClicked()
         (int)Scene.meshes.size(), (int)Scene.surfels.size(),
         Preloaded > 0 ? *FString::Printf(TEXT(" (+%d prior)"), Preloaded) : TEXT("")));
 
+    // Apply consolidated UI sliders → internal params (linear mapping)
+    DepositK                              = FMath::Lerp(0.05f, 1.0f,  WeatheringAmount_);
+    DustVisibility_                       = FMath::Lerp(0.0f,  1.0f,  WeatheringAmount_);
+    PostProcessConfig_.probabilistic_deposit = FMath::Lerp(0.3f, 1.0f, WeatheringAmount_);
+
+    PostProcessConfig_.useThreshold       = (Contrast_ > 0.f);
+    PostProcessConfig_.threshold          = FMath::Lerp(0.3f,  0.0f,  Contrast_);   // inverted: more contrast = lower threshold
+    PostProcessConfig_.sigmoid_steepness  = FMath::Lerp(1.0f,  30.0f, Contrast_);
+
+    PostProcessConfig_.useNoiseMask       = (SurfaceVariation_ > 0.f);
+    PostProcessConfig_.noise_strength     = FMath::Lerp(0.0f,  1.0f,  SurfaceVariation_);
+    PostProcessConfig_.noise_scale        = FMath::Lerp(2.0f,  16.0f, SurfaceVariation_);
+
     // Build config
     GTSimConfig Config;
     Config.n_tons_per_iter       = NTonsPerIter;
@@ -1805,6 +1856,12 @@ FReply SGammaTonPanel::OnRunClicked()
         Config.ton_types.push_back(EntryToTonType(*E));
     if (Config.ton_types.empty())
         Config.ton_types.push_back(GTTonType{});
+    {
+        float TotalW = 0.f;
+        for (const auto& T : Config.ton_types) TotalW += T.weight;
+        if (TotalW > 0.f)
+            for (auto& T : Config.ton_types) T.weight /= TotalW;
+    }
 
     GTSimulator Sim(Scene.surfels, Intersector, Scene.meshes, Config, &Scene.textures);
 
@@ -2085,6 +2142,9 @@ FReply SGammaTonPanel::OnTraceRayClicked()
             FGammaTonTextureBridge::LoadTextureIntoObjTexture(Prev, Scene.textures[i]);
     }
 
+    // Apply consolidated UI sliders → internal params (mirrors OnRunClicked)
+    DepositK = FMath::Lerp(0.05f, 1.0f, WeatheringAmount_);
+
     GTSimConfig Config;
     Config.n_tons_per_iter  = NTonsPerIter;
     Config.max_bounces      = MaxBounces;
@@ -2097,6 +2157,12 @@ FReply SGammaTonPanel::OnTraceRayClicked()
         Config.ton_types.push_back(EntryToTonType(*E));
     if (Config.ton_types.empty())
         Config.ton_types.push_back(GTTonType{});
+    {
+        float TotalW = 0.f;
+        for (const auto& T : Config.ton_types) TotalW += T.weight;
+        if (TotalW > 0.f)
+            for (auto& T : Config.ton_types) T.weight /= TotalW;
+    }
 
     GTSimulator Sim(Scene.surfels, Intersector, Scene.meshes, Config, &Scene.textures);
     GTRayPath   Path = Sim.traceTonDebug();

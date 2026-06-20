@@ -23,7 +23,11 @@ private:
     int32 TextureSize   = 1024;
     float BounceDistance  = 50.0f;
     float ParabolaGravity = 0.5f;
-    bool  bSimAdvancedExpanded_ = false;
+
+    // ── Consolidated UI params (each drives multiple internal values) ──────
+    float WeatheringAmount_ = 0.5f;  // → DepositK, probabilistic_deposit, DustVisibility_
+    float Contrast_         = 0.0f;  // → threshold, sigmoid_steepness
+    float SurfaceVariation_ = 0.0f;  // → noise_strength, noise_scale
 
     // ── Cross-channel rules (paper §3.4) ──────────────────────────────────
     float CrossRustFromHumidity  = 0.0f;
@@ -87,6 +91,7 @@ private:
     // ── Per-actor γ-reflectance ───────────────────────────────────────────
     struct FActorReflEntry {
         FString Name;
+        bool bCollapsed = false;
         // γ-reflectance decay rates
         float DeltaS = 0.5f;
         float DeltaP = 0.0f;
