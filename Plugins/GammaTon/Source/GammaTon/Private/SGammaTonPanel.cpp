@@ -656,129 +656,6 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .OnValueCommitted_Lambda([this](int32 v, ETextCommit::Type) { TextureSize = FMath::Max(1, v); })
                 .ToolTipText(LOCTEXT("TipTex", "Output texture resolution in pixels. Recommended: 512–2048. Larger values give sharper detail but use more memory."))
             )]
-            + SScrollBox::Slot().Padding(8, 6, 8, 0)
-            [
-                SNew(SExpandableArea)
-                .BorderImage(FCoreStyle::Get().GetBrush("Border"))
-                .BorderBackgroundColor(FLinearColor(0.12f, 0.12f, 0.18f, 1.f))
-                .BodyBorderImage(FCoreStyle::Get().GetBrush("Border"))
-                .BodyBorderBackgroundColor(FLinearColor(0.08f, 0.08f, 0.12f, 1.f))
-                .HeaderPadding(FMargin(4.f, 4.f))
-                .Padding(FMargin(4.f, 2.f, 4.f, 4.f))
-                .InitiallyCollapsed(true)
-                .HeaderContent()
-                [
-                    SNew(STextBlock)
-                    .Text(LOCTEXT("SimAdvHdr", "Advanced"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
-                    .ColorAndOpacity(FLinearColor(0.65f, 0.80f, 1.f, 1.f))
-                ]
-                .BodyContent()
-                [
-                    SNew(SVerticalBox)
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Max Interactions"),
-                        SNew(SNumericEntryBox<int32>).AllowSpin(false)
-                        .Value_Lambda([this]() { return TOptional<int32>(MaxBounces); })
-                        .OnValueCommitted_Lambda([this](int32 v, ETextCommit::Type) { MaxBounces = FMath::Max(1, v); })
-                        .ToolTipText(LOCTEXT("TipBounce", "Maximum scatter / bounce / flow events per particle before it settles. Lower values concentrate deposits near the source."))
-                    )]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Flow Distance (cm)"),
-                        SNew(SNumericEntryBox<float>).AllowSpin(false)
-                        .Value_Lambda([this]() { return TOptional<float>(FlowStep); })
-                        .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) { FlowStep = FMath::Max(0.f, v); })
-                        .ToolTipText(LOCTEXT("TipFlow", "Distance a particle travels per surface-flow event. Larger values create longer drip or streak marks."))
-                    )]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Bounce Distance (cm)"),
-                        SNew(SNumericEntryBox<float>).AllowSpin(false)
-                        .Value_Lambda([this]() { return TOptional<float>(BounceDistance); })
-                        .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) { BounceDistance = FMath::Max(0.f, v); })
-                        .ToolTipText(LOCTEXT("TipBDist", "Maximum arc length for a bounce event in cm. Controls how far particles hop across the surface."))
-                    )]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Gravity Effect"),
-                        SNew(SNumericEntryBox<float>).AllowSpin(false)
-                        .Value_Lambda([this]() { return TOptional<float>(ParabolaGravity); })
-                        .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) { ParabolaGravity = FMath::Max(0.f, v); })
-                        .ToolTipText(LOCTEXT("TipGrav", "Downward pull applied to bounce arcs. Higher values create shorter, more curved trajectories."))
-                    )]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 2)
-                    [ SNew(STextBlock).Text(LOCTEXT("CrsHdr", "Material Interactions"))
-                      .ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Moisture → Rust Rate"),
-                        SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f)
-                        .Value_Lambda([this]() { return CrossRustFromHumidity; })
-                        .OnValueChanged_Lambda([this](float v) { CrossRustFromHumidity = v; })
-                        .ToolTipText(LOCTEXT("TipCrossRust", "Per-step conversion rate of moisture into rust. 0 = no rust growth, 1 = rapid oxidation."))
-                    )]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Moisture Evaporation"),
-                        SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f)
-                        .Value_Lambda([this]() { return CrossHumidityDecay; })
-                        .OnValueChanged_Lambda([this](float v) { CrossHumidityDecay = v; })
-                        .ToolTipText(LOCTEXT("TipCrossDecay", "How quickly moisture dries out each step. Higher values keep wet zones small and focused."))
-                    )]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Rust Covers Dust"),
-                        SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f)
-                        .Value_Lambda([this]() { return CrossPigmentCoversDust; })
-                        .OnValueChanged_Lambda([this](float v) { CrossPigmentCoversDust = v; })
-                        .ToolTipText(LOCTEXT("TipCrossPig", "How much rust suppresses dust on the same surface. 1 = rust fully covers any underlying dust."))
-                    )]
-                    // ── Blocking Objects (Advanced 내부로 이동) ──────────────────────
-                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 2)
-                    [ SNew(STextBlock).Text(LOCTEXT("OccluderHdrAdv", "Blocking Objects"))
-                      .ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
-                    + SVerticalBox::Slot().AutoHeight()
-                    [
-                        SNew(SHorizontalBox)
-                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                        [
-                            SNew(SCheckBox)
-                            .IsChecked_Lambda([this]() {
-                                return bAutoOccluder_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-                            })
-                            .OnCheckStateChanged_Lambda([this](ECheckBoxState s) {
-                                bAutoOccluder_ = (s == ECheckBoxState::Checked);
-                            })
-                        ]
-                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0, 8, 0)
-                        [
-                            SNew(STextBlock)
-                            .Text(LOCTEXT("AutoOccLabel", "Auto-detect nearby occluders"))
-                            .ToolTipText(LOCTEXT("TipAutoOcc",
-                                "Automatically include nearby Static Mesh actors as blocking objects.\n"
-                                "These objects block particles but do not receive weathering themselves."))
-                        ]
-                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
-                        [ SNew(STextBlock).Text(LOCTEXT("AutoOccRadLabel", "Radius (cm):")) ]
-                        + SHorizontalBox::Slot().FillWidth(1.f)
-                        [
-                            SNew(SNumericEntryBox<float>).AllowSpin(false)
-                            .Value_Lambda([this]() { return TOptional<float>(AutoOccluderRadius_); })
-                            .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) {
-                                AutoOccluderRadius_ = FMath::Max(0.f, v);
-                                if (Visualizer_) {
-                                    TArray<AActor*> Sel;
-                                    for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
-                                        if (AActor* A = Cast<AActor>(*It)) Sel.Add(A);
-                                    FBox Bounds(EForceInit::ForceInit);
-                                    for (AActor* A : Sel) Bounds += A->GetComponentsBoundingBox(true);
-                                    FVector Center = Sel.IsEmpty() ? FVector::ZeroVector : Bounds.GetCenter();
-                                    Visualizer_->ShowOccluderRadius(Center, AutoOccluderRadius_, 3.0f);
-                                }
-                            })
-                            .ToolTipText(LOCTEXT("TipAutoOccRadius",
-                                "Search radius (cm) from the center of selected actors.\n"
-                                "Press Enter to preview the radius sphere in the viewport for 3 seconds."))
-                        ]
-                    ]
-                ]
-            ]
-
             // ── Ton Types ─────────────────────────────────────────────────────
             + SScrollBox::Slot().Padding(4, 8, 4, 0)
             [
@@ -854,8 +731,8 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 ]
             ]
 
-            // ── Post-Process (기본 collapsed) ────────────────────────────────
-            + SScrollBox::Slot().Padding(4, 8, 4, 4)
+            // ── Advanced (기본 collapsed) ────────────────────────────────────
+            + SScrollBox::Slot().Padding(4, 8, 4, 0)
             [
                 SNew(SExpandableArea)
                 .BorderImage(FCoreStyle::Get().GetBrush("Border"))
@@ -868,7 +745,7 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 .HeaderContent()
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("PPHdr", "Post-Process"))
+                    .Text(LOCTEXT("SimAdvHdr", "Advanced"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
                     .ColorAndOpacity(FLinearColor(0.65f, 0.80f, 1.f, 1.f))
                 ]
@@ -876,14 +753,11 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                 [
                     SNew(SVerticalBox)
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [ MakeRow(TEXT("Contrast"),
-                        SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).MinSliderValue(0.f).MaxSliderValue(1.f).Delta(0.01f)
-                        .Value_Lambda([this]() { return Contrast_; })
-                        .OnValueChanged_Lambda([this](float v) { Contrast_ = v; })
-                        .ToolTipText(LOCTEXT("TipContrast",
-                            "Sharpens the boundary between weathered and clean areas.\n"
-                            "0 = soft, gradual deposit  ·  1 = hard, high-contrast edge.\n"
-                            "Drives threshold cutoff and sigmoid steepness together."))
+                    [ MakeRow(TEXT("Flow Distance (cm)"),
+                        SNew(SNumericEntryBox<float>).AllowSpin(false)
+                        .Value_Lambda([this]() { return TOptional<float>(FlowStep); })
+                        .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) { FlowStep = FMath::Max(0.f, v); })
+                        .ToolTipText(LOCTEXT("TipFlow", "Distance a particle travels per surface-flow event. Larger values create longer drip or streak marks."))
                     )]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
                     [
@@ -909,6 +783,54 @@ void SGammaTonPanel::Construct(const FArguments& InArgs)
                                 return FReply::Handled();
                             })
                             .ToolTipText(LOCTEXT("TipRandSeed", "Pick a new random noise pattern."))
+                        ]
+                    ]
+                    // ── Blocking Objects ─────────────────────────────────────────────
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 2)
+                    [ SNew(STextBlock).Text(LOCTEXT("OccluderHdrAdv", "Blocking Objects"))
+                      .ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
+                    + SVerticalBox::Slot().AutoHeight()
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                        [
+                            SNew(SCheckBox)
+                            .IsChecked_Lambda([this]() {
+                                return bAutoOccluder_ ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                            })
+                            .OnCheckStateChanged_Lambda([this](ECheckBoxState s) {
+                                bAutoOccluder_ = (s == ECheckBoxState::Checked);
+                            })
+                        ]
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0, 8, 0)
+                        [
+                            SNew(STextBlock)
+                            .Text(LOCTEXT("AutoOccLabel", "Auto-detect nearby occluders"))
+                            .ToolTipText(LOCTEXT("TipAutoOcc",
+                                "Automatically include nearby Static Mesh actors as blocking objects.\n"
+                                "These objects block particles but do not receive weathering themselves."))
+                        ]
+                        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
+                        [ SNew(STextBlock).Text(LOCTEXT("AutoOccRadLabel", "Radius (cm):")) ]
+                        + SHorizontalBox::Slot().FillWidth(1.f)
+                        [
+                            SNew(SNumericEntryBox<float>).AllowSpin(false)
+                            .Value_Lambda([this]() { return TOptional<float>(AutoOccluderRadius_); })
+                            .OnValueCommitted_Lambda([this](float v, ETextCommit::Type) {
+                                AutoOccluderRadius_ = FMath::Max(0.f, v);
+                                if (Visualizer_) {
+                                    TArray<AActor*> Sel;
+                                    for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
+                                        if (AActor* A = Cast<AActor>(*It)) Sel.Add(A);
+                                    FBox Bounds(EForceInit::ForceInit);
+                                    for (AActor* A : Sel) Bounds += A->GetComponentsBoundingBox(true);
+                                    FVector Center = Sel.IsEmpty() ? FVector::ZeroVector : Bounds.GetCenter();
+                                    Visualizer_->ShowOccluderRadius(Center, AutoOccluderRadius_, 3.0f);
+                                }
+                            })
+                            .ToolTipText(LOCTEXT("TipAutoOccRadius",
+                                "Search radius (cm) from the center of selected actors.\n"
+                                "Press Enter to preview the radius sphere in the viewport for 3 seconds."))
                         ]
                     ]
                 ]
@@ -981,13 +903,7 @@ GTGammaSource SGammaTonPanel::EntryToSource(const FTonTypeEntry& e) const
     GTGammaSource Src;
     Src.type        = (GTSourceType)e.SourceTypeIdx;
     Src.center      = { e.SrcCX, e.SrcCY, e.SrcCZ };
-    {
-        float P = FMath::DegreesToRadians(e.SrcPitch);
-        float Y = FMath::DegreesToRadians(e.SrcYaw);
-        Src.direction = GTVec3{ FMath::Cos(P)*FMath::Cos(Y),
-                                FMath::Cos(P)*FMath::Sin(Y),
-                                FMath::Sin(P) }.normalized();
-    }
+    Src.direction   = GTVec3{ e.SrcDX, e.SrcDY, e.SrcDZ }.normalized();
     Src.spread_deg  = e.SrcSpread;
     Src.area_half_x = e.SrcHalfX;
     Src.area_half_z = e.SrcHalfZ;
@@ -1024,8 +940,8 @@ void SGammaTonPanel::SetTonTypes(const std::vector<GTTonType>& types)
             const auto& src = t.sources[0];
             E->SourceTypeIdx = (int32)src.type;
             E->SrcCX    = src.center.x;  E->SrcCY = src.center.y;  E->SrcCZ = src.center.z;
-            E->SrcPitch = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(src.direction.z, -1.f, 1.f)));
-            E->SrcYaw   = FMath::RadiansToDegrees(FMath::Atan2(src.direction.y, src.direction.x));
+            GTVec3 D = GTVec3{ src.direction.x, src.direction.y, src.direction.z }.normalized();
+            E->SrcDX = D.x;  E->SrcDY = D.y;  E->SrcDZ = D.z;
             E->SrcSpread = src.spread_deg;
             E->SrcHalfX  = src.area_half_x;
             E->SrcHalfZ  = src.area_half_z;
@@ -1173,7 +1089,7 @@ void SGammaTonPanel::RebuildTonTypesUI()
                     .ToolTipText(LOCTEXT("TipSrcZ", "Emission origin Z height in world space (cm). Default 1400 cm places the source well above most actors."))) ]
             ];
 
-            // Direction (Pitch / Yaw) — DIRECTIONAL, POINT only
+            // Direction (XYZ vector) — DIRECTIONAL, POINT only
             CardBox->AddSlot().AutoHeight().Padding(0, 4, 0, 1)
             [
                 SNew(SBox)
@@ -1181,7 +1097,7 @@ void SGammaTonPanel::RebuildTonTypesUI()
                     return (Entry->SourceTypeIdx == 0 || Entry->SourceTypeIdx == 1)
                         ? EVisibility::Visible : EVisibility::Collapsed;
                 })
-                [ SNew(STextBlock).Text(FText::FromString(TEXT("  Direction (°)"))).ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
+                [ SNew(STextBlock).Text(FText::FromString(TEXT("  Direction"))).ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f, 1.f)) ]
             ];
             CardBox->AddSlot().AutoHeight()
             [
@@ -1194,23 +1110,33 @@ void SGammaTonPanel::RebuildTonTypesUI()
                     SNew(SHorizontalBox)
                     + SHorizontalBox::Slot().FillWidth(1.f)
                     [
-                        MakeC(TEXT("Pitch"), SNew(SSpinBox<float>)
-                            .MinValue(-90.f).MaxValue(90.f).Delta(1.f)
-                            .Value_Lambda([Entry]() { return Entry->SrcPitch; })
-                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcPitch = v; RefreshVisualizer(); })
-                            .ToolTipText(LOCTEXT("TipPitch",
-                                "Vertical emission angle.\n"
-                                "-90° = straight down  |  0° = horizontal  |  90° = straight up")))
+                        MakeC(TEXT("X"), SNew(SSpinBox<float>)
+                            .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
+                            .Value_Lambda([Entry]() { return Entry->SrcDX; })
+                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDX = v; RefreshVisualizer(); })
+                            .ToolTipText(LOCTEXT("TipDirX",
+                                "X component of emission direction.\n"
+                                "Normalized automatically. (1,0,0) = +X axis.")))
                     ]
                     + SHorizontalBox::Slot().FillWidth(1.f)
                     [
-                        MakeC(TEXT("Yaw"), SNew(SSpinBox<float>)
-                            .MinValue(-180.f).MaxValue(180.f).Delta(1.f)
-                            .Value_Lambda([Entry]() { return Entry->SrcYaw; })
-                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcYaw = v; RefreshVisualizer(); })
-                            .ToolTipText(LOCTEXT("TipYaw",
-                                "Horizontal emission rotation.\n"
-                                "0° = +X  |  90° = +Y  |  ±180° = -X")))
+                        MakeC(TEXT("Y"), SNew(SSpinBox<float>)
+                            .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
+                            .Value_Lambda([Entry]() { return Entry->SrcDY; })
+                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDY = v; RefreshVisualizer(); })
+                            .ToolTipText(LOCTEXT("TipDirY",
+                                "Y component of emission direction.\n"
+                                "Normalized automatically. (0,1,0) = +Y axis.")))
+                    ]
+                    + SHorizontalBox::Slot().FillWidth(1.f)
+                    [
+                        MakeC(TEXT("Z"), SNew(SSpinBox<float>)
+                            .MinValue(-1.f).MaxValue(1.f).Delta(0.05f)
+                            .Value_Lambda([Entry]() { return Entry->SrcDZ; })
+                            .OnValueChanged_Lambda([this, Entry](float v) { Entry->SrcDZ = v; RefreshVisualizer(); })
+                            .ToolTipText(LOCTEXT("TipDirZ",
+                                "Z component of emission direction.\n"
+                                "(0,0,-1) = straight down  |  (0,0,1) = straight up.")))
                     ]
                 ]
             ];
@@ -1339,51 +1265,6 @@ void SGammaTonPanel::RebuildTonTypesUI()
                 )]
             ];
 
-            // Row 2: Roughness + Moisture — label dims to gray when value = 0 (inactive)
-            CardBox->AddSlot().AutoHeight().Padding(0, 2, 0, 0)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [
-                    SNew(SHorizontalBox)
-                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                    [ SNew(SBox).WidthOverride(40.f)
-                      [ SNew(STextBlock).Text(FText::FromString(TEXT("Rough")))
-                        .ColorAndOpacity_Lambda([Entry]() -> FSlateColor {
-                            return Entry->CarrierSR > 0.f
-                                ? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 1.f))
-                                : FSlateColor(FLinearColor(0.35f, 0.35f, 0.35f, 1.f));
-                        })
-                      ]
-                    ]
-                    + SHorizontalBox::Slot().FillWidth(1.f)
-                    [ SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                        .Value_Lambda([Entry]() { return Entry->CarrierSR; })
-                        .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSR = v; })
-                        .ToolTipText(LOCTEXT("TipSR", "Roughness deposited on the surface. Higher values make the surface grittier and increase particle capture on subsequent passes."))
-                    ]
-                ]
-                + SHorizontalBox::Slot().FillWidth(1.f)
-                [
-                    SNew(SHorizontalBox)
-                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                    [ SNew(SBox).WidthOverride(40.f)
-                      [ SNew(STextBlock).Text(FText::FromString(TEXT("Moist")))
-                        .ColorAndOpacity_Lambda([Entry]() -> FSlateColor {
-                            return Entry->CarrierSH > 0.f
-                                ? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 1.f))
-                                : FSlateColor(FLinearColor(0.35f, 0.35f, 0.35f, 1.f));
-                        })
-                      ]
-                    ]
-                    + SHorizontalBox::Slot().FillWidth(1.f)
-                    [ SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                        .Value_Lambda([Entry]() { return Entry->CarrierSH; })
-                        .OnValueChanged_Lambda([Entry](float v) { Entry->CarrierSH = v; })
-                        .ToolTipText(LOCTEXT("TipSH", "Moisture deposited on the surface. High moisture accelerates rust growth and enables biological effects via Material Interactions."))
-                    ]
-                ]
-            ];
 
             // ── Weight (1개일 때 숨김, 2개 이상일 때 비율 표시) ──────────────
             CardBox->AddSlot().AutoHeight().Padding(0, 6, 0, 2)
@@ -1502,43 +1383,10 @@ void SGammaTonPanel::RebuildActorReflUI()
             .BodyContent()
             [
                 SNew(SVerticalBox)
-                + SVerticalBox::Slot().AutoHeight()
-                [ MakeRow(TEXT("Scatter Fade"),
-                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
-                    .Value_Lambda([Entry]() { return Entry->DeltaS; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaS = v; })
-                    .ToolTipText(LOCTEXT("TipDeltaS",
-                        "How quickly scatter probability fades per bounce on this object.\n"
-                        "Higher values make particles settle sooner, concentrating deposits near the source.\n"
-                        "0 = no fade (infinite scatter), 1 = settles immediately on first contact.\n"
-                        "Recommended: 0.3–0.7"))
-                )]
-                + SVerticalBox::Slot().AutoHeight()
-                [ MakeRow(TEXT("Bounce Fade"),
-                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
-                    .Value_Lambda([Entry]() { return Entry->DeltaP; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaP = v; })
-                    .ToolTipText(LOCTEXT("TipDeltaP",
-                        "How quickly bounce probability fades per impact on this object.\n"
-                        "Faded bounce converts to surface flow, forming drip streaks.\n"
-                        "Higher values create more runoff and fewer hops.\n"
-                        "Recommended: 0.0–0.3"))
-                )]
-                + SVerticalBox::Slot().AutoHeight()
-                [ MakeRow(TEXT("Flow Fade"),
-                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.01f)
-                    .Value_Lambda([Entry]() { return Entry->DeltaF; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->DeltaF = v; })
-                    .ToolTipText(LOCTEXT("TipDeltaF",
-                        "How quickly surface flow fades per step on this object.\n"
-                        "Higher values produce short, stubby streaks.\n"
-                        "0 = flows indefinitely, 1 = stops after a single step.\n"
-                        "Recommended: 0.0–0.2"))
-                )]
-                + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 1)
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 1)
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("InitMatHdr", "— Pre-existing Weathering —"))
+                    .Text(LOCTEXT("InitMatHdr", "Pre-existing Weathering"))
                     .ColorAndOpacity(FLinearColor(0.6f, 0.75f, 0.6f, 1.f))
                     .ToolTipText(LOCTEXT("InitMatTip",
                         "Weathering already present on the surface before the simulation runs.\n"
@@ -1557,20 +1405,6 @@ void SGammaTonPanel::RebuildActorReflUI()
                     .Value_Lambda([Entry]() { return Entry->InitSP; })
                     .OnValueChanged_Lambda([Entry](float v) { Entry->InitSP = v; })
                     .ToolTipText(LOCTEXT("TipInitSP", "Rust already on this surface. Pre-existing rust spreads onto connected surfaces from the first simulation step."))
-                )]
-                + SVerticalBox::Slot().AutoHeight()
-                [ MakeRow(TEXT("Starting Roughness"),
-                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                    .Value_Lambda([Entry]() { return Entry->InitSR; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->InitSR = v; })
-                    .ToolTipText(LOCTEXT("TipInitSR", "Surface roughness before simulation. Rougher surfaces capture more particles, accelerating weathering buildup."))
-                )]
-                + SVerticalBox::Slot().AutoHeight()
-                [ MakeRow(TEXT("Starting Moisture"),
-                    SNew(SSpinBox<float>).MinValue(0.f).MaxValue(1.f).Delta(0.05f)
-                    .Value_Lambda([Entry]() { return Entry->InitSH; })
-                    .OnValueChanged_Lambda([Entry](float v) { Entry->InitSH = v; })
-                    .ToolTipText(LOCTEXT("TipInitSH", "Moisture already on this surface. High starting moisture immediately activates rust growth and biological effects via Material Interactions."))
                 )]
             ]
         ];
@@ -1674,8 +1508,9 @@ void SGammaTonPanel::SaveSettings() const
         GConfig->SetFloat (S, *(P+TEXT("CX")),      E.SrcCX,          GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("CY")),      E.SrcCY,          GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("CZ")),      E.SrcCZ,          GEditorPerProjectIni);
-        GConfig->SetFloat (S, *(P+TEXT("Pitch")),    E.SrcPitch,       GEditorPerProjectIni);
-        GConfig->SetFloat (S, *(P+TEXT("Yaw")),      E.SrcYaw,         GEditorPerProjectIni);
+        GConfig->SetFloat (S, *(P+TEXT("DX")),       E.SrcDX,          GEditorPerProjectIni);
+        GConfig->SetFloat (S, *(P+TEXT("DY")),       E.SrcDY,          GEditorPerProjectIni);
+        GConfig->SetFloat (S, *(P+TEXT("DZ")),       E.SrcDZ,          GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("Sprd")),    E.SrcSpread,      GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("HX")),      E.SrcHalfX,       GEditorPerProjectIni);
         GConfig->SetFloat (S, *(P+TEXT("HZ")),      E.SrcHalfZ,       GEditorPerProjectIni);
@@ -1750,8 +1585,9 @@ void SGammaTonPanel::LoadSettings()
             GConfig->GetFloat (S, *(P+TEXT("CX")),      E->SrcCX,         GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("CY")),      E->SrcCY,         GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("CZ")),      E->SrcCZ,         GEditorPerProjectIni);
-            GConfig->GetFloat (S, *(P+TEXT("Pitch")),    E->SrcPitch,      GEditorPerProjectIni);
-            GConfig->GetFloat (S, *(P+TEXT("Yaw")),      E->SrcYaw,        GEditorPerProjectIni);
+            GConfig->GetFloat (S, *(P+TEXT("DX")),       E->SrcDX,         GEditorPerProjectIni);
+            GConfig->GetFloat (S, *(P+TEXT("DY")),       E->SrcDY,         GEditorPerProjectIni);
+            GConfig->GetFloat (S, *(P+TEXT("DZ")),       E->SrcDZ,         GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("Sprd")),    E->SrcSpread,     GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("HX")),      E->SrcHalfX,      GEditorPerProjectIni);
             GConfig->GetFloat (S, *(P+TEXT("HZ")),      E->SrcHalfZ,      GEditorPerProjectIni);
@@ -1982,16 +1818,12 @@ FReply SGammaTonPanel::OnRunClicked()
                 E.CarrierSD, E.CarrierSP, E.CarrierSR, E.CarrierSH);
             int32 SrcIdx = FMath::Clamp(E.SourceTypeIdx, 0, 3);
             {
-                float Pr = FMath::DegreesToRadians(E.SrcPitch);
-                float Yr = FMath::DegreesToRadians(E.SrcYaw);
-                float DX = FMath::Cos(Pr)*FMath::Cos(Yr);
-                float DY = FMath::Cos(Pr)*FMath::Sin(Yr);
-                float DZ = FMath::Sin(Pr);
+                GTVec3 D = GTVec3{ E.SrcDX, E.SrcDY, E.SrcDZ }.normalized();
                 Log += FString::Printf(
-                    TEXT("  Source : %s  center=(%.0f,%.0f,%.0f)  pitch=%.1f yaw=%.1f  dir=(%.2f,%.2f,%.2f)  spread=%.1f deg\n"),
+                    TEXT("  Source : %s  center=(%.0f,%.0f,%.0f)  dir=(%.2f,%.2f,%.2f)  spread=%.1f deg\n"),
                     SrcNames[SrcIdx],
                     E.SrcCX, E.SrcCY, E.SrcCZ,
-                    E.SrcPitch, E.SrcYaw, DX, DY, DZ, E.SrcSpread);
+                    D.x, D.y, D.z, E.SrcSpread);
             }
         }
         Log += TEXT("\n");

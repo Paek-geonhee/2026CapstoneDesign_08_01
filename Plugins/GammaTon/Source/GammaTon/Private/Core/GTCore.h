@@ -476,6 +476,7 @@ struct GTRayHitRecord {
     std::vector<GTVec3> parabola_pts;
 };
 
+
 // Complete path of one debug γ-ton from emission to final outcome.
 struct GTRayPath {
     GTVec3                      origin;
