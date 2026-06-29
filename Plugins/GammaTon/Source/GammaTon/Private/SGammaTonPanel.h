@@ -23,7 +23,11 @@ private:
     int32 TextureSize   = 1024;
     float BounceDistance  = 50.0f;
     float ParabolaGravity = 0.5f;
-    bool  bSimAdvancedExpanded_ = false;
+
+    // ── Consolidated UI params (each drives multiple internal values) ──────
+    float WeatheringAmount_ = 0.5f;  // → DepositK, probabilistic_deposit, DustVisibility_
+    float Contrast_         = 0.0f;  // → threshold, sigmoid_steepness
+    float SurfaceVariation_ = 0.0f;  // → noise_strength, noise_scale
 
     // ── Cross-channel rules (paper §3.4) ──────────────────────────────────
     float CrossRustFromHumidity  = 0.0f;
@@ -63,7 +67,7 @@ private:
         // Source
         int32 SourceTypeIdx = 0;
         float SrcCX = 0.0f, SrcCY = 0.0f, SrcCZ = 1400.0f;
-        float SrcPitch = -90.0f, SrcYaw = 0.0f;  // degrees, UE convention
+        float SrcDX = 0.0f, SrcDY = 0.0f, SrcDZ = -1.0f;  // normalized direction vector
         float SrcSpread = 5.0f, SrcHalfX = 500.0f, SrcHalfZ = 500.0f;
         // Collapse state — toggled by the card header button
         bool bCollapsed = false;
@@ -87,6 +91,7 @@ private:
     // ── Per-actor γ-reflectance ───────────────────────────────────────────
     struct FActorReflEntry {
         FString Name;
+        bool bCollapsed = false;
         // γ-reflectance decay rates
         float DeltaS = 0.5f;
         float DeltaP = 0.0f;
