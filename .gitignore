@@ -7,7 +7,6 @@ Build/
 Capstone/
 Config/
 Content/
-Source/
 *.uproject
 
 # ── Visual Studio ─────────────────────────────────────────────────────────────
@@ -34,6 +33,7 @@ Content/__ExternalObjects__/
 
 # ── GammaTon 시뮬레이션 결과 텍스처 (로컬 생성물) ────────────────────────────
 Content/GammaTon/
+Web/
 
 # ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
